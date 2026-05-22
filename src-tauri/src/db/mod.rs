@@ -20,6 +20,9 @@ impl Database {
         }
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        // v1: schema is idempotent (CREATE IF NOT EXISTS, INSERT OR IGNORE),
+        // so we run it unconditionally. app_meta.schema_version is seeded but
+        // not yet read — a real migration system arrives with the first v2 change.
         conn.execute_batch(SCHEMA_SQL)?;
         Ok(Self { conn: Mutex::new(conn) })
     }
