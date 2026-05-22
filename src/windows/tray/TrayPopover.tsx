@@ -1,83 +1,73 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
-import { onTimerChanged } from '../../lib/events';
+import { onTimerChanged, onEntriesChanged } from '../../lib/events';
 import { qk } from '../../lib/query';
-import type { Category, Project, TimeEntry } from '../../types';
+import type { Category, Id, Project, TimeEntry } from '../../types';
+import { todayRangeUtc } from './format';
+import { HeaderIcons } from './HeaderIcons';
+import { InlineTimerForm } from './InlineTimerForm';
+import { TodayList } from './TodayList';
+import { TodayEntryRow } from './TodayEntryRow';
+import { TodayFooter } from './TodayFooter';
 
-const FONT = { fontFamily: 'system-ui, -apple-system, sans-serif' } as const;
+// ---------------------------------------------------------------------------
+// Mode state machine
+// ---------------------------------------------------------------------------
 
-export function TrayPopover() {
-  const qc = useQueryClient();
-  const categories = useQuery({ queryKey: qk.categories, queryFn: api.listCategories });
-  const projects = useQuery({ queryKey: qk.projects, queryFn: api.listProjects });
-  const timer = useQuery({ queryKey: qk.timerState, queryFn: api.getTimerState });
+type Mode =
+  | { kind: 'browse' }
+  | { kind: 'new' }
+  | { kind: 'edit'; sourceEntry: TimeEntry };
 
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    onTimerChanged(() => qc.invalidateQueries({ queryKey: qk.timerState })).then((u) => (unlisten = u));
-    return () => unlisten?.();
-  }, [qc]);
+const BLANK_INITIAL = { categoryId: null, projectId: null, description: '' } as const;
 
-  const startMut = useMutation({
-    mutationFn: ({ categoryId, projectId }: { categoryId: string; projectId: string | null }) =>
-      api.startTimer(categoryId, projectId, null),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.timerState }),
-  });
-  const stopMut = useMutation({
-    mutationFn: () => api.stopTimer(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.timerState }),
-  });
+// ---------------------------------------------------------------------------
+// Helpers (kept inline — same as before)
+// ---------------------------------------------------------------------------
 
-  const running = timer.data?.running ?? null;
+function elapsedSeconds(startedAtIso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(startedAtIso).getTime()) / 1000));
+}
+function formatElapsed(s: number): string {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
 
+// ---------------------------------------------------------------------------
+// Sub-components (local, inline)
+// ---------------------------------------------------------------------------
+
+function Header({ onError }: { onError: (msg: string) => void }) {
   return (
-    <div className="flex h-full flex-col gap-2 bg-[#ebebee] p-2" style={FONT}>
-      <StatusCard
-        running={running}
-        categories={categories.data ?? []}
-        projects={projects.data ?? []}
-        onStop={() => stopMut.mutate()}
-        isStopping={stopMut.isPending}
-      />
-      <QuickStartCard
-        running={running}
-        categories={categories.data ?? []}
-        projects={projects.data ?? []}
-        onStart={(categoryId, projectId) => startMut.mutate({ categoryId, projectId })}
-        isStarting={startMut.isPending}
-        error={startMut.isError ? startMut.error : null}
-      />
+    <div className="flex items-center justify-between px-3 py-2 border-b border-black/5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#86868b]">TimeTrak</div>
+      <HeaderIcons onError={onError} />
     </div>
   );
 }
 
 function StatusCard({
-  running, categories, projects, onStop, isStopping,
+  running,
+  categories,
+  projects,
+  onStop,
+  isStopping,
 }: {
-  running: TimeEntry | null;
+  running: TimeEntry;
   categories: Category[];
   projects: Project[];
   onStop: () => void;
   isStopping: boolean;
 }) {
-  if (!running) {
-    return (
-      <div className="rounded-xl bg-white/80 px-3 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur">
-        <div className="text-[10px] uppercase tracking-[0.08em] text-[#86868b]">Now</div>
-        <div className="mt-1 flex items-center justify-between">
-          <span className="text-[13px] font-medium text-[#1d1d1f]">Not tracking</span>
-          <span className="text-[11px] text-[#86868b]">Pick below ↓</span>
-        </div>
-      </div>
-    );
-  }
-
   const [e, setE] = useState(elapsedSeconds(running.started_at));
   useEffect(() => {
     const t = setInterval(() => setE(elapsedSeconds(running.started_at)), 1000);
     return () => clearInterval(t);
   }, [running.started_at]);
+
   const cat = categories.find((c) => c.id === running.category_id);
   const proj = projects.find((p) => p.id === running.project_id);
 
@@ -112,65 +102,211 @@ function StatusCard({
   );
 }
 
-function QuickStartCard({
-  running, categories, projects, onStart, isStarting, error,
-}: {
-  running: TimeEntry | null;
-  categories: Category[];
-  projects: Project[];
-  onStart: (categoryId: string, projectId: string | null) => void;
-  isStarting: boolean;
-  error: unknown;
-}) {
-  const disabled = isStarting || !!running;
+// ---------------------------------------------------------------------------
+// Main orchestrator
+// ---------------------------------------------------------------------------
+
+export function TrayPopover() {
+  const qc = useQueryClient();
+
+  const today = useMemo(() => todayRangeUtc(), []);
+
+  const categories = useQuery({ queryKey: qk.categories, queryFn: api.listCategories });
+  const projects = useQuery({ queryKey: qk.projects, queryFn: api.listProjects });
+  const timer = useQuery({ queryKey: qk.timerState, queryFn: api.getTimerState });
+  const entriesQuery = useQuery({
+    queryKey: qk.entries(today.startUtc, today.endUtc),
+    queryFn: () => api.listEntries(today.startUtc, today.endUtc),
+  });
+
+  const [mode, setMode] = useState<Mode>({ kind: 'browse' });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  // Live clock for TodayFooter
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Event subscriptions
+  useEffect(() => {
+    let unlistenTimer: (() => void) | undefined;
+    let unlistenEntries: (() => void) | undefined;
+
+    onTimerChanged(() => {
+      qc.invalidateQueries({ queryKey: qk.timerState });
+      qc.invalidateQueries({ queryKey: ['entries'] });
+    }).then((u) => (unlistenTimer = u));
+
+    onEntriesChanged(() => {
+      qc.invalidateQueries({ queryKey: ['entries'] });
+    }).then((u) => (unlistenEntries = u));
+
+    return () => {
+      unlistenTimer?.();
+      unlistenEntries?.();
+    };
+  }, [qc]);
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: qk.timerState });
+    qc.invalidateQueries({ queryKey: ['entries'] });
+  };
+
+  const startOrSwitchMut = useMutation({
+    mutationFn: ({
+      categoryId,
+      projectId,
+      description,
+    }: {
+      categoryId: Id;
+      projectId: Id | null;
+      description: string | null;
+    }) =>
+      running
+        ? api.switchTimer(categoryId, projectId, description)
+        : api.startTimer(categoryId, projectId, description),
+    onSuccess: () => {
+      invalidateAll();
+      setMode({ kind: 'browse' });
+      setErrorMessage(null);
+    },
+    onError: (err: unknown) => {
+      setErrorMessage(String(err));
+    },
+  });
+
+  const stopMut = useMutation({
+    mutationFn: () => api.stopTimer(),
+    onSuccess: () => {
+      invalidateAll();
+      setErrorMessage(null);
+    },
+    onError: (err: unknown) => {
+      setErrorMessage(String(err));
+    },
+  });
+
+  const running = timer.data?.running ?? null;
+  const allEntries = entriesQuery.data ?? [];
+  const cats = categories.data ?? [];
+  const projs = projects.data ?? [];
+
+  const handleNew = () => {
+    setMode({ kind: 'new' });
+    setErrorMessage(null);
+  };
+
+  const handleResume = (entry: TimeEntry) => {
+    setMode({ kind: 'edit', sourceEntry: entry });
+    setErrorMessage(null);
+  };
+
+  const handleCancel = () => {
+    setMode({ kind: 'browse' });
+    setErrorMessage(null);
+  };
+
+  const handleSubmit = (v: { categoryId: Id; projectId: Id | null; description: string | null }) => {
+    startOrSwitchMut.mutate(v);
+  };
+
+  const fromEntry = (entry: TimeEntry) => ({
+    categoryId: entry.category_id,
+    projectId: entry.project_id,
+    description: entry.note ?? '',
+  });
+
   return (
-    <div className="flex-1 overflow-y-auto rounded-xl bg-white/80 p-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur">
-      <div className="px-1 pb-1 text-[10px] uppercase tracking-[0.08em] text-[#86868b]">Quick start</div>
-      <div className="grid grid-cols-2 gap-1.5">
-        {categories.map((c) => (
+    <div
+      className="flex h-full flex-col bg-[#ebebee]"
+      style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+    >
+      <Header onError={setErrorMessage} />
+
+      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
+        {/* Running status card — only when tracking */}
+        {running && (
+          <StatusCard
+            running={running}
+            categories={cats}
+            projects={projs}
+            onStop={() => stopMut.mutate()}
+            isStopping={stopMut.isPending}
+          />
+        )}
+
+        {/* New timer: form or dashed button */}
+        {mode.kind === 'new' ? (
+          <InlineTimerForm
+            initial={BLANK_INITIAL}
+            categories={cats}
+            projects={projs}
+            onCancel={handleCancel}
+            onSubmit={handleSubmit}
+            submitting={startOrSwitchMut.isPending}
+          />
+        ) : (
           <button
-            key={c.id}
-            disabled={disabled}
-            onClick={() => onStart(c.id, null)}
-            className="flex items-center gap-1.5 rounded-md bg-white px-2 py-1.5 text-left text-[12px] ring-1 ring-inset ring-black/5 transition-colors hover:bg-[#0a84ff]/5 disabled:opacity-40"
+            type="button"
+            onClick={handleNew}
+            className="w-full rounded-md border border-dashed border-black/15 bg-white/40 px-3 py-1.5 text-[11px] text-[#86868b] transition-colors hover:border-black/30 hover:bg-white/70 hover:text-[#1d1d1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]"
           >
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: c.color }} />
-            <span className="truncate">{c.name}</span>
+            ＋ New timer
           </button>
-        ))}
-      </div>
-      {projects.length > 0 && categories[0] && (
-        <>
-          <div className="px-1 pb-1 pt-2 text-[10px] uppercase tracking-[0.08em] text-[#86868b]">By project</div>
-          <div className="space-y-1">
-            {projects.slice(0, 4).map((pr) => (
-              <button
-                key={pr.id}
-                disabled={disabled}
-                onClick={() => onStart(categories[0].id, pr.id)}
-                className="flex w-full items-center gap-1.5 rounded-md bg-white px-2 py-1 text-left text-[11px] ring-1 ring-inset ring-black/5 hover:bg-[#0a84ff]/5 disabled:opacity-40"
-              >
-                <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: pr.color }} />
-                <span className="truncate">{pr.name}</span>
-                <span className="ml-auto text-[10px] text-[#86868b]">→ {categories[0].name}</span>
-              </button>
-            ))}
+        )}
+
+        {/* Today's entries */}
+        <section>
+          <div className="px-1 pb-1 text-[10px] uppercase tracking-[0.08em] text-[#86868b]">Today</div>
+          {mode.kind === 'edit' ? (
+            <div className="space-y-1">
+              {/* Clicked entry pinned at the top of edit area */}
+              <TodayEntryRow
+                entry={mode.sourceEntry}
+                categories={cats}
+                projects={projs}
+                onResume={() => {}}
+              />
+              {/* Inline form immediately below the entry */}
+              <InlineTimerForm
+                initial={fromEntry(mode.sourceEntry)}
+                categories={cats}
+                projects={projs}
+                onCancel={handleCancel}
+                onSubmit={handleSubmit}
+                submitting={startOrSwitchMut.isPending}
+              />
+              {/* Remaining stopped entries */}
+              <TodayList
+                entries={allEntries.filter((e) => e.id !== mode.sourceEntry.id)}
+                categories={cats}
+                projects={projs}
+                runningId={running?.id ?? null}
+                onResume={handleResume}
+              />
+            </div>
+          ) : (
+            <TodayList
+              entries={allEntries}
+              categories={cats}
+              projects={projs}
+              runningId={running?.id ?? null}
+              onResume={handleResume}
+            />
+          )}
+        </section>
+
+        {/* Error toast */}
+        {errorMessage && (
+          <div className="rounded-md bg-[#ff453a]/10 px-2 py-1 text-[10px] text-[#ff453a]">
+            {errorMessage}
           </div>
-        </>
-      )}
-      {Boolean(error) && (
-        <div className="mt-1.5 rounded-md bg-red-50 px-2 py-1 text-[10px] text-red-600">{String(error)}</div>
-      )}
+        )}
+      </div>
+
+      <TodayFooter entries={allEntries} runningEntry={running} nowMs={nowMs} />
     </div>
   );
-}
-
-function elapsedSeconds(startedAtIso: string): number {
-  return Math.max(0, Math.floor((Date.now() - new Date(startedAtIso).getTime()) / 1000));
-}
-function formatElapsed(s: number): string {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
