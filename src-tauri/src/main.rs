@@ -55,9 +55,14 @@ fn main() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        rect,
+                        ..
+                    } = event {
                         let app = tray.app_handle();
-                        toggle_tray_window(app);
+                        toggle_tray_window(app, Some(rect));
                     }
                 })
                 .build(app)?;
@@ -68,28 +73,58 @@ fn main() {
         .expect("error while running tauri application");
 }
 
-fn toggle_tray_window(app: &tauri::AppHandle) {
+const POPOVER_W: f64 = 340.0;
+const POPOVER_H: f64 = 440.0;
+
+fn toggle_tray_window(app: &tauri::AppHandle, tray_rect: Option<tauri::Rect>) {
+    let position = tray_rect.map(compute_popover_position);
+
     if let Some(w) = app.get_webview_window(TRAY_WINDOW_LABEL) {
         if w.is_visible().unwrap_or(false) {
             let _ = w.hide();
-        } else {
-            let _ = w.show();
-            let _ = w.set_focus();
+            return;
         }
+        if let Some(p) = position {
+            let _ = w.set_position(p);
+        }
+        let _ = w.show();
+        let _ = w.set_focus();
         return;
     }
-    let _ = WebviewWindowBuilder::new(
+    let mut builder = WebviewWindowBuilder::new(
         app,
         TRAY_WINDOW_LABEL,
         WebviewUrl::App("index.html?window=tray".into()),
     )
-    .inner_size(280.0, 340.0)
+    .inner_size(POPOVER_W, POPOVER_H)
     .decorations(false)
     .resizable(false)
     .always_on_top(true)
     .skip_taskbar(true)
-    .visible(true)
-    .build();
+    .visible(true);
+    if let Some(p) = position {
+        builder = builder.position(p.x, p.y);
+    }
+    let _ = builder.build();
+}
+
+#[cfg(target_os = "macos")]
+fn compute_popover_position(rect: tauri::Rect) -> tauri::PhysicalPosition<f64> {
+    let pos = rect.position.to_physical::<f64>(1.0);
+    let size = rect.size.to_physical::<f64>(1.0);
+    let x = pos.x + (size.width / 2.0) - (POPOVER_W / 2.0);
+    let y = pos.y + size.height + 4.0;
+    tauri::PhysicalPosition::new(x, y)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn compute_popover_position(rect: tauri::Rect) -> tauri::PhysicalPosition<f64> {
+    // Windows: taskbar at the bottom by default, so position the popover above the tray icon.
+    let pos = rect.position.to_physical::<f64>(1.0);
+    let size = rect.size.to_physical::<f64>(1.0);
+    let x = pos.x + (size.width / 2.0) - (POPOVER_W / 2.0);
+    let y = pos.y - POPOVER_H - 4.0;
+    tauri::PhysicalPosition::new(x, y)
 }
 
 fn open_window(app: &tauri::AppHandle, name: &str) -> tauri::Result<()> {
