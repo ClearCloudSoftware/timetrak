@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+.vite/
+
+# Rust
+src-tauri/target/
+src-tauri/Cargo.lock.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local
+*.log
+*.sqlite
+*.sqlite-journal
