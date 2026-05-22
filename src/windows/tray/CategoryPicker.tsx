@@ -15,6 +15,11 @@ interface Props {
   onChange: (v: PickerValue) => void;
 }
 
+const LABEL =
+  'block text-[10px] font-medium uppercase tracking-[0.08em] text-[#86868b]';
+const FIELD =
+  'mt-0.5 w-full rounded-md bg-white px-2 py-1 text-[12px] text-[#1d1d1f] ring-1 ring-inset ring-black/10 outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]';
+
 export function CategoryPicker({
   categories,
   projects,
@@ -24,13 +29,11 @@ export function CategoryPicker({
   onChange,
 }: Props) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <div>
-        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
-          Category
-        </label>
+        <label className={LABEL}>Category</label>
         <select
-          className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className={FIELD}
           value={categoryId ?? ''}
           onChange={(e) => onChange({ categoryId: e.target.value || null, projectId, note })}
         >
@@ -41,11 +44,9 @@ export function CategoryPicker({
         </select>
       </div>
       <div>
-        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
-          Project
-        </label>
+        <label className={LABEL}>Project</label>
         <select
-          className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className={FIELD}
           value={projectId ?? ''}
           onChange={(e) => onChange({ categoryId, projectId: e.target.value || null, note })}
         >
@@ -56,16 +57,16 @@ export function CategoryPicker({
         </select>
       </div>
       <div>
-        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
-          Description (optional)
-        </label>
+        <label className={LABEL}>Description (optional)</label>
         <input
-          className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className={FIELD}
           maxLength={250}
           value={note}
           onChange={(e) => onChange({ categoryId, projectId, note: e.target.value })}
         />
-        <div className="mt-0.5 text-right text-xs text-gray-400">{note.length} / 250</div>
+        <div className="mt-0.5 text-right text-[10px] tabular-nums text-[#86868b]">
+          {note.length} / 250
+        </div>
       </div>
     </div>
   );
