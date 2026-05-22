@@ -252,7 +252,6 @@ export function TrayPopover() {
         {/* Quick-start chips — always visible above the history list */}
         <QuickStartCard
           categories={cats}
-          projects={projs}
           onStart={(categoryId, projectId) =>
             startOrSwitchMut.mutate({ categoryId, projectId, description: null })
           }
