@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   onTimerChanged,
   onEntriesChanged,
@@ -133,6 +134,23 @@ export function TrayPopover() {
   useEffect(() => {
     const t = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  // Reset transient popover state when the window loses focus. The Rust side
+  // hides the window on blur (main.rs `WindowEvent::Focused(false)`), but the
+  // webview is reused — without this, the next show would still display
+  // whatever 'edit'/'new' mode the user left behind.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    getCurrentWindow()
+      .onFocusChanged(({ payload: focused }) => {
+        if (!focused) {
+          setMode({ kind: 'browse' });
+          setErrorMessage(null);
+        }
+      })
+      .then((u) => (unlisten = u));
+    return () => unlisten?.();
   }, []);
 
   // Event subscriptions — keep tray popover in sync with mutations from other windows
