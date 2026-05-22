@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -116,7 +116,10 @@ function StatusCard({
 export function TrayPopover() {
   const qc = useQueryClient();
 
-  const today = useMemo(() => todayRangeUtc(), []);
+  // Today range is stateful so it can refresh across local-midnight while the
+  // popover webview stays mounted (it's reused across hide/show by the Rust
+  // tray handler). The focus listener below recomputes on each focus.
+  const [today, setToday] = useState(todayRangeUtc);
 
   const categories = useQuery({ queryKey: qk.categories, queryFn: api.listCategories });
   const projects = useQuery({ queryKey: qk.projects, queryFn: api.listProjects });
@@ -129,52 +132,78 @@ export function TrayPopover() {
   const [mode, setMode] = useState<Mode>({ kind: 'browse' });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [popoverFocused, setPopoverFocused] = useState(true);
 
-  // Live clock for TodayFooter
+  const running = timer.data?.running ?? null;
+
+  // Live clock for TodayFooter — only tick while popover is visible AND a
+  // timer is running. Avoids wasted renders when the window is hidden or idle.
   useEffect(() => {
+    if (!popoverFocused || !running) return;
     const t = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [popoverFocused, Boolean(running)]);
 
-  // Reset transient popover state when the window loses focus. The Rust side
-  // hides the window on blur (main.rs `WindowEvent::Focused(false)`), but the
-  // webview is reused — without this, the next show would still display
-  // whatever 'edit'/'new' mode the user left behind.
+  // On window focus change: track focus state, refresh today range across
+  // midnight, and reset transient UI on blur. The Rust side hides the window
+  // on blur (main.rs `WindowEvent::Focused(false)`), but the webview is reused
+  // — without the reset, the next show would still display whatever edit/new
+  // mode the user left behind. Functional setState avoids no-op re-renders.
   useEffect(() => {
+    let cancelled = false;
     let unlisten: (() => void) | undefined;
     getCurrentWindow()
       .onFocusChanged(({ payload: focused }) => {
-        if (!focused) {
-          setMode({ kind: 'browse' });
-          setErrorMessage(null);
+        setPopoverFocused((cur) => (cur === focused ? cur : focused));
+        if (focused) {
+          setToday((cur) => {
+            const next = todayRangeUtc();
+            return cur.startUtc === next.startUtc ? cur : next;
+          });
+        } else {
+          setMode((m) => (m.kind === 'browse' ? m : { kind: 'browse' }));
+          setErrorMessage((e) => (e === null ? e : null));
         }
       })
-      .then((u) => (unlisten = u));
-    return () => unlisten?.();
+      .then((u) => {
+        if (cancelled) u();
+        else unlisten = u;
+      });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
-  // Event subscriptions — keep tray popover in sync with mutations from other windows
+  // Event subscriptions — keep tray popover in sync with mutations from other
+  // windows. The `cancelled` flag disposes of late-arriving listeners that
+  // resolve after the cleanup runs (StrictMode + IPC round-trip race).
   useEffect(() => {
+    let cancelled = false;
     const unsubs: Array<() => void> = [];
+    const track = (p: Promise<() => void>) => {
+      p.then((u) => {
+        if (cancelled) u();
+        else unsubs.push(u);
+      });
+    };
 
-    onTimerChanged(() => {
+    track(onTimerChanged(() => {
       qc.invalidateQueries({ queryKey: qk.timerState });
       qc.invalidateQueries({ queryKey: ['entries'] });
-    }).then((u) => unsubs.push(u));
-
-    onEntriesChanged(() => {
+    }));
+    track(onEntriesChanged(() => {
       qc.invalidateQueries({ queryKey: ['entries'] });
-    }).then((u) => unsubs.push(u));
-
-    onCategoriesChanged(() => {
+    }));
+    track(onCategoriesChanged(() => {
       qc.invalidateQueries({ queryKey: qk.categories });
-    }).then((u) => unsubs.push(u));
-
-    onProjectsChanged(() => {
+    }));
+    track(onProjectsChanged(() => {
       qc.invalidateQueries({ queryKey: qk.projects });
-    }).then((u) => unsubs.push(u));
+    }));
 
     return () => {
+      cancelled = true;
       unsubs.forEach((u) => u());
     };
   }, [qc]);
@@ -218,7 +247,6 @@ export function TrayPopover() {
     },
   });
 
-  const running = timer.data?.running ?? null;
   const allEntries = entriesQuery.data ?? [];
   const cats = categories.data ?? [];
   const projs = projects.data ?? [];
