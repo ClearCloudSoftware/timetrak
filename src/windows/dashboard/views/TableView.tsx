@@ -47,7 +47,7 @@ export function TableView(p: DashViewProps) {
               <th className="border-b border-black/5 px-3 py-1.5 font-medium">Dur</th>
               <th className="border-b border-black/5 px-3 py-1.5 font-medium">Category</th>
               <th className="border-b border-black/5 px-3 py-1.5 font-medium">Project</th>
-              <th className="border-b border-black/5 px-3 py-1.5 font-medium">Note</th>
+              <th className="border-b border-black/5 px-3 py-1.5 font-medium">Description</th>
               <th className="border-b border-black/5 px-3 py-1.5" />
             </tr>
           </thead>

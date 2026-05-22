@@ -76,12 +76,14 @@ export function EntryEditorSheet({ entry, categories, projects, onClose, onSaved
               onChange={(e) => setEnd(e.target.value)}
             />
           </Field>
-          <Field label="Note">
+          <Field label="Description">
             <input
-              className="w-full rounded border border-gray-200 px-2 py-1.5 text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="w-full rounded border border-gray-200 px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              maxLength={250}
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
+            <div className="mt-0.5 text-right text-xs text-gray-400">{note.length} / 250</div>
           </Field>
         </div>
         {save.isError && (
