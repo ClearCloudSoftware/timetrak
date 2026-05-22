@@ -23,6 +23,7 @@ fn main() {
             let db = Database::open(&data_dir.join("timetrak.sqlite"))
                 .expect("open database");
             app.manage(db);
+            timetrak_lib::notifications::spawn_scheduler(app.handle().clone());
 
             // Tray menu
             let show_dashboard = MenuItem::with_id(app, "show_dashboard", "Show Dashboard", true, None::<&str>)?;
