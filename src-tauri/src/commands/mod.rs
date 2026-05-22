@@ -22,6 +22,14 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::entries::update_entry,
             timetrak_lib::commands::entries::delete_entry,
             timetrak_lib::commands::export::export_csv,
+            timetrak_lib::commands::categories::list_categories,
+            timetrak_lib::commands::categories::create_category,
+            timetrak_lib::commands::categories::update_category,
+            timetrak_lib::commands::categories::delete_category,
+            timetrak_lib::commands::projects::list_projects,
+            timetrak_lib::commands::projects::create_project,
+            timetrak_lib::commands::projects::update_project,
+            timetrak_lib::commands::projects::delete_project,
             // (other plans append here)
         ]
     };
