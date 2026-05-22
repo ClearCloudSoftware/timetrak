@@ -11,6 +11,7 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .invoke_handler(timetrak_lib::timetrak_handlers!())
         .setup(|app| {
             let data_dir = app
                 .path()

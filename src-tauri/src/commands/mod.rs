@@ -13,11 +13,11 @@ pub mod timer;
 macro_rules! timetrak_handlers {
     () => {
         tauri::generate_handler![
-            // categories
-            // crate::commands::categories::list_categories,
-            // crate::commands::categories::create_category,
-            // ...
-            // (Each follow-up plan uncomments / adds entries here.)
+            timetrak_lib::commands::timer::get_timer_state,
+            timetrak_lib::commands::timer::start_timer,
+            timetrak_lib::commands::timer::stop_timer,
+            timetrak_lib::commands::timer::switch_timer,
+            // (other plans append here)
         ]
     };
 }
