@@ -3,7 +3,12 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import * as api from '../../lib/api';
-import { onEntriesChanged, onTimerChanged } from '../../lib/events';
+import {
+  onEntriesChanged,
+  onTimerChanged,
+  onCategoriesChanged,
+  onProjectsChanged,
+} from '../../lib/events';
 import { qk } from '../../lib/query';
 import type { TimeEntry } from '../../types';
 import { startOfWeekUtc } from './format';
@@ -37,6 +42,8 @@ export function Dashboard() {
     const unsubs: Array<() => void> = [];
     onEntriesChanged(() => qc.invalidateQueries({ queryKey: ['entries'] })).then((u) => unsubs.push(u));
     onTimerChanged(() => qc.invalidateQueries({ queryKey: ['entries'] })).then((u) => unsubs.push(u));
+    onCategoriesChanged(() => qc.invalidateQueries({ queryKey: qk.categories })).then((u) => unsubs.push(u));
+    onProjectsChanged(() => qc.invalidateQueries({ queryKey: qk.projects })).then((u) => unsubs.push(u));
     return () => { unsubs.forEach((u) => u()); };
   }, [qc]);
 

@@ -21,7 +21,7 @@ pub fn create_project(
 ) -> AppResult<Project> {
     let conn = db.conn.lock().unwrap();
     let p = repo::projects::create(&conn, &name, &color)?;
-    let _ = app.emit("entries-changed", ());
+    let _ = app.emit("projects-changed", ());
     Ok(p)
 }
 
@@ -35,7 +35,7 @@ pub fn update_project(
 ) -> AppResult<Project> {
     let conn = db.conn.lock().unwrap();
     let p = repo::projects::update(&conn, id, &name, &color)?;
-    let _ = app.emit("entries-changed", ());
+    let _ = app.emit("projects-changed", ());
     Ok(p)
 }
 
@@ -47,6 +47,9 @@ pub fn delete_project(
 ) -> AppResult<()> {
     let conn = db.conn.lock().unwrap();
     repo::projects::delete(&conn, id)?;
+    let _ = app.emit("projects-changed", ());
+    // FK ON DELETE SET NULL may have rewritten time_entry.project_id, so
+    // entries-views need to refresh too.
     let _ = app.emit("entries-changed", ());
     Ok(())
 }

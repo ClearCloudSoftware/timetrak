@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
-import { onTimerChanged, onEntriesChanged } from '../../lib/events';
+import {
+  onTimerChanged,
+  onEntriesChanged,
+  onCategoriesChanged,
+  onProjectsChanged,
+} from '../../lib/events';
 import { qk } from '../../lib/query';
 import type { Category, Id, Project, TimeEntry } from '../../types';
 import { todayRangeUtc } from './format';
@@ -130,23 +135,29 @@ export function TrayPopover() {
     return () => clearInterval(t);
   }, []);
 
-  // Event subscriptions
+  // Event subscriptions — keep tray popover in sync with mutations from other windows
   useEffect(() => {
-    let unlistenTimer: (() => void) | undefined;
-    let unlistenEntries: (() => void) | undefined;
+    const unsubs: Array<() => void> = [];
 
     onTimerChanged(() => {
       qc.invalidateQueries({ queryKey: qk.timerState });
       qc.invalidateQueries({ queryKey: ['entries'] });
-    }).then((u) => (unlistenTimer = u));
+    }).then((u) => unsubs.push(u));
 
     onEntriesChanged(() => {
       qc.invalidateQueries({ queryKey: ['entries'] });
-    }).then((u) => (unlistenEntries = u));
+    }).then((u) => unsubs.push(u));
+
+    onCategoriesChanged(() => {
+      qc.invalidateQueries({ queryKey: qk.categories });
+    }).then((u) => unsubs.push(u));
+
+    onProjectsChanged(() => {
+      qc.invalidateQueries({ queryKey: qk.projects });
+    }).then((u) => unsubs.push(u));
 
     return () => {
-      unlistenTimer?.();
-      unlistenEntries?.();
+      unsubs.forEach((u) => u());
     };
   }, [qc]);
 

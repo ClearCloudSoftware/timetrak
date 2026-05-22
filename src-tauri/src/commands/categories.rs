@@ -21,7 +21,7 @@ pub fn create_category(
 ) -> AppResult<Category> {
     let conn = db.conn.lock().unwrap();
     let c = repo::categories::create(&conn, &name, &color)?;
-    let _ = app.emit("entries-changed", ());
+    let _ = app.emit("categories-changed", ());
     Ok(c)
 }
 
@@ -35,7 +35,7 @@ pub fn update_category(
 ) -> AppResult<Category> {
     let conn = db.conn.lock().unwrap();
     let c = repo::categories::update(&conn, id, &name, &color)?;
-    let _ = app.emit("entries-changed", ());
+    let _ = app.emit("categories-changed", ());
     Ok(c)
 }
 
@@ -48,6 +48,10 @@ pub fn delete_category(
 ) -> AppResult<()> {
     let conn = db.conn.lock().unwrap();
     repo::categories::delete(&conn, id, cascade_entries)?;
-    let _ = app.emit("entries-changed", ());
+    let _ = app.emit("categories-changed", ());
+    if cascade_entries {
+        // Cascade also removed time_entry rows referencing this category.
+        let _ = app.emit("entries-changed", ());
+    }
     Ok(())
 }

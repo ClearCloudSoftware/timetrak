@@ -167,7 +167,9 @@ string at the Tauri boundary.
 | Event name | Payload (JSON) | Emitter |
 |------------|----------------|---------|
 | `timer-changed` | `{ "running": TimeEntry | null }` | plan 02 (after every start/stop/switch and on edit/delete that touches running entry) |
-| `entries-changed` | `{}` | plans 03, 04 after any DB write |
+| `entries-changed` | `{}` | plan 03 entries CRUD; plan 04 category cascade-delete; v0.2 project delete (FK set-null) |
+| `categories-changed` | `{}` | v0.2 — category create / update / delete |
+| `projects-changed` | `{}` | v0.2 — project create / update / delete |
 
 ### Repository public APIs (defined in plan 01)
 
