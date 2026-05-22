@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for TimeTrak windows (tray, dashboard, settings).",
+  "windows": ["*"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:webview:default",
+    "core:event:default",
+    "core:path:default",
+    "core:app:default",
+
+    "dialog:default",
+    "dialog:allow-save",
+    "dialog:allow-open",
+
+    "fs:default",
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "**/*" }]
+    },
+
+    "notification:default",
+    "autostart:default"
+  ]
+}
