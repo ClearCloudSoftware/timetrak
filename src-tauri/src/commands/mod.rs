@@ -17,6 +17,11 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::timer::start_timer,
             timetrak_lib::commands::timer::stop_timer,
             timetrak_lib::commands::timer::switch_timer,
+            timetrak_lib::commands::entries::list_entries,
+            timetrak_lib::commands::entries::create_entry,
+            timetrak_lib::commands::entries::update_entry,
+            timetrak_lib::commands::entries::delete_entry,
+            timetrak_lib::commands::export::export_csv,
             // (other plans append here)
         ]
     };
