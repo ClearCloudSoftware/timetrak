@@ -7,3 +7,6 @@ pub mod notifications;
 pub mod repo;
 pub mod reporting;
 pub mod timer;
+
+#[cfg(test)]
+mod test_support;
