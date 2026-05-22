@@ -7,6 +7,7 @@ import type { Category, Id, Project, TimeEntry } from '../../types';
 import { todayRangeUtc } from './format';
 import { HeaderIcons } from './HeaderIcons';
 import { InlineTimerForm } from './InlineTimerForm';
+import { QuickStartCard } from './QuickStartCard';
 import { TodayList } from './TodayList';
 import { TodayEntryRow } from './TodayEntryRow';
 import { TodayFooter } from './TodayFooter';
@@ -193,6 +194,12 @@ export function TrayPopover() {
   const cats = categories.data ?? [];
   const projs = projects.data ?? [];
 
+  // Hybrid surface: when nothing is stopped today AND we're not editing/new,
+  // show QuickStartCard chips for one-click bootstrap. Otherwise show the
+  // history-driven "+ New timer" + TodayList pair.
+  const stoppedToday = allEntries.filter((e) => e.ended_at !== null);
+  const showQuickStart = mode.kind === 'browse' && stoppedToday.length === 0;
+
   const handleNew = () => {
     setMode({ kind: 'new' });
     setErrorMessage(null);
@@ -237,66 +244,81 @@ export function TrayPopover() {
           />
         )}
 
-        {/* New timer: form or dashed button */}
-        {mode.kind === 'new' ? (
-          <InlineTimerForm
-            initial={BLANK_INITIAL}
+        {/* Fresh-day chips vs history-driven list */}
+        {showQuickStart ? (
+          <QuickStartCard
             categories={cats}
             projects={projs}
-            onCancel={handleCancel}
-            onSubmit={handleSubmit}
-            submitting={startOrSwitchMut.isPending}
+            onStart={(categoryId, projectId) =>
+              startOrSwitchMut.mutate({ categoryId, projectId, description: null })
+            }
+            pending={startOrSwitchMut.isPending}
+            error={startOrSwitchMut.isError ? startOrSwitchMut.error : null}
           />
         ) : (
-          <button
-            type="button"
-            onClick={handleNew}
-            className="w-full rounded-md border border-dashed border-black/15 bg-white/40 px-3 py-1.5 text-[11px] text-[#86868b] transition-colors hover:border-black/30 hover:bg-white/70 hover:text-[#1d1d1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]"
-          >
-            ＋ New timer
-          </button>
-        )}
-
-        {/* Today's entries */}
-        <section>
-          <div className="px-1 pb-1 text-[10px] uppercase tracking-[0.08em] text-[#86868b]">Today</div>
-          {mode.kind === 'edit' ? (
-            <div className="space-y-1">
-              {/* Clicked entry pinned at the top of edit area */}
-              <TodayEntryRow
-                entry={mode.sourceEntry}
-                categories={cats}
-                projects={projs}
-                onResume={() => {}}
-              />
-              {/* Inline form immediately below the entry */}
+          <>
+            {/* New timer: form or dashed button */}
+            {mode.kind === 'new' ? (
               <InlineTimerForm
-                initial={fromEntry(mode.sourceEntry)}
+                initial={BLANK_INITIAL}
                 categories={cats}
                 projects={projs}
                 onCancel={handleCancel}
                 onSubmit={handleSubmit}
                 submitting={startOrSwitchMut.isPending}
               />
-              {/* Remaining stopped entries */}
-              <TodayList
-                entries={allEntries.filter((e) => e.id !== mode.sourceEntry.id)}
-                categories={cats}
-                projects={projs}
-                runningId={running?.id ?? null}
-                onResume={handleResume}
-              />
-            </div>
-          ) : (
-            <TodayList
-              entries={allEntries}
-              categories={cats}
-              projects={projs}
-              runningId={running?.id ?? null}
-              onResume={handleResume}
-            />
-          )}
-        </section>
+            ) : (
+              <button
+                type="button"
+                onClick={handleNew}
+                className="w-full rounded-md border border-dashed border-black/15 bg-white/40 px-3 py-1.5 text-[11px] text-[#86868b] transition-colors hover:border-black/30 hover:bg-white/70 hover:text-[#1d1d1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]"
+              >
+                ＋ New timer
+              </button>
+            )}
+
+            {/* Today's entries */}
+            <section>
+              <div className="px-1 pb-1 text-[10px] uppercase tracking-[0.08em] text-[#86868b]">Today</div>
+              {mode.kind === 'edit' ? (
+                <div className="space-y-1">
+                  {/* Clicked entry pinned at the top of edit area */}
+                  <TodayEntryRow
+                    entry={mode.sourceEntry}
+                    categories={cats}
+                    projects={projs}
+                    onResume={() => {}}
+                  />
+                  {/* Inline form immediately below the entry */}
+                  <InlineTimerForm
+                    initial={fromEntry(mode.sourceEntry)}
+                    categories={cats}
+                    projects={projs}
+                    onCancel={handleCancel}
+                    onSubmit={handleSubmit}
+                    submitting={startOrSwitchMut.isPending}
+                  />
+                  {/* Remaining stopped entries */}
+                  <TodayList
+                    entries={allEntries.filter((e) => e.id !== mode.sourceEntry.id)}
+                    categories={cats}
+                    projects={projs}
+                    runningId={running?.id ?? null}
+                    onResume={handleResume}
+                  />
+                </div>
+              ) : (
+                <TodayList
+                  entries={allEntries}
+                  categories={cats}
+                  projects={projs}
+                  runningId={running?.id ?? null}
+                  onResume={handleResume}
+                />
+              )}
+            </section>
+          </>
+        )}
 
         {/* Error toast */}
         {errorMessage && (
