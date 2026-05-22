@@ -79,6 +79,77 @@ fn parse_iso(s: &str) -> Result<DateTime<Utc>, chrono::ParseError> {
     DateTime::parse_from_rfc3339(s).map(|t| t.with_timezone(&Utc))
 }
 
+pub fn create(conn: &Connection, new: &NewEntry) -> AppResult<TimeEntry> {
+    if let Some(end) = new.ended_at {
+        if end <= new.started_at {
+            return Err(AppError::Invalid("ended_at must be after started_at".into()));
+        }
+    }
+    // A second running entry conflicts with the unique partial index — surface that
+    // as AlreadyRunning before the generic overlap check.
+    if new.ended_at.is_none() {
+        if running(conn)?.is_some() {
+            return Err(AppError::AlreadyRunning);
+        }
+    }
+    if has_overlap(conn, None, new.started_at, new.ended_at)? {
+        return Err(AppError::Overlap);
+    }
+    let id = Uuid::new_v4();
+    let res = conn.execute(
+        "INSERT INTO time_entry (id, category_id, project_id, started_at, ended_at, note)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![
+            id.to_string(),
+            new.category_id.to_string(),
+            new.project_id.map(|p| p.to_string()),
+            iso(new.started_at),
+            new.ended_at.map(iso),
+            new.note,
+        ],
+    );
+    match res {
+        Ok(_) => find(conn, id),
+        Err(rusqlite::Error::SqliteFailure(e, _)) if e.extended_code == rusqlite::ffi::SQLITE_CONSTRAINT_UNIQUE => {
+            Err(AppError::AlreadyRunning)
+        }
+        Err(e) => Err(AppError::Db(e)),
+    }
+}
+
+/// True if any other entry's [start, end) overlaps the given range.
+/// A running entry counts as extending to "end of time" for overlap purposes
+/// only when checking against closed entries that occur after its start.
+fn has_overlap(
+    conn: &Connection,
+    exclude_id: Option<Uuid>,
+    start: DateTime<Utc>,
+    end: Option<DateTime<Utc>>,
+) -> AppResult<bool> {
+    // Two entries overlap iff start_a < end_b AND start_b < end_a.
+    // Treat NULL ended_at as +infinity.
+    let exclude = exclude_id.map(|i| i.to_string()).unwrap_or_default();
+    let end_s = end.map(iso);
+    let cnt: i64 = match end_s {
+        Some(end_str) => conn.query_row(
+            "SELECT COUNT(*) FROM time_entry
+             WHERE id != ?1
+               AND started_at < ?3
+               AND (ended_at IS NULL OR ended_at > ?2)",
+            rusqlite::params![exclude, iso(start), end_str],
+            |r| r.get(0),
+        )?,
+        None => conn.query_row(
+            "SELECT COUNT(*) FROM time_entry
+             WHERE id != ?1
+               AND (ended_at IS NULL OR ended_at > ?2)",
+            rusqlite::params![exclude, iso(start)],
+            |r| r.get(0),
+        )?,
+    };
+    Ok(cnt > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,5 +189,69 @@ mod tests {
         let db = fresh_db();
         let conn = db.conn.lock().unwrap();
         assert!(running(&conn).unwrap().is_none());
+    }
+
+    #[test]
+    fn create_inserts_closed_entry() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        let e = create(&conn, &NewEntry {
+            category_id: meeting(),
+            project_id: None,
+            started_at: t("2026-05-22T10:00:00Z"),
+            ended_at: Some(t("2026-05-22T11:00:00Z")),
+            note: Some("standup".into()),
+        }).unwrap();
+        assert_eq!(e.note.as_deref(), Some("standup"));
+    }
+
+    #[test]
+    fn create_rejects_end_before_start() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        let err = create(&conn, &NewEntry {
+            category_id: meeting(),
+            project_id: None,
+            started_at: t("2026-05-22T11:00:00Z"),
+            ended_at: Some(t("2026-05-22T10:00:00Z")),
+            note: None,
+        }).unwrap_err();
+        assert!(matches!(err, AppError::Invalid(_)));
+    }
+
+    #[test]
+    fn create_rejects_overlap_with_existing_closed_entry() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        insert_closed(&conn, meeting(), "2026-05-22T10:00:00Z", "2026-05-22T11:00:00Z");
+        let err = create(&conn, &NewEntry {
+            category_id: meeting(),
+            project_id: None,
+            started_at: t("2026-05-22T10:30:00Z"),
+            ended_at: Some(t("2026-05-22T11:30:00Z")),
+            note: None,
+        }).unwrap_err();
+        assert!(matches!(err, AppError::Overlap));
+    }
+
+    #[test]
+    fn create_running_when_one_already_running_errors() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        create(&conn, &NewEntry {
+            category_id: meeting(),
+            project_id: None,
+            started_at: t("2026-05-22T10:00:00Z"),
+            ended_at: None,
+            note: None,
+        }).unwrap();
+        let err = create(&conn, &NewEntry {
+            category_id: meeting(),
+            project_id: None,
+            started_at: t("2026-05-22T11:00:00Z"),
+            ended_at: None,
+            note: None,
+        }).unwrap_err();
+        assert!(matches!(err, AppError::AlreadyRunning));
     }
 }
