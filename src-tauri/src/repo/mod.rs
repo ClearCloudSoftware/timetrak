@@ -1,1 +1,3 @@
-//! placeholder — Task 4-6 fills this in
+pub mod categories;
+pub mod entries;
+pub mod projects;
