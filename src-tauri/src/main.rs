@@ -32,7 +32,17 @@ fn main() {
             let menu = Menu::with_items(app, &[&show_dashboard, &show_settings, &quit])?;
 
             TrayIconBuilder::with_id("main-tray")
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon({
+                    #[cfg(target_os = "macos")]
+                    {
+                        tauri::image::Image::from_path("icons/tray-template.png").unwrap()
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        tauri::image::Image::from_path("icons/tray.ico").unwrap()
+                    }
+                })
+                .icon_as_template(cfg!(target_os = "macos"))
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
