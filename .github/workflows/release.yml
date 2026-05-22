@@ -1,4 +1,5 @@
 name: Release
+# Triggered on v* tag push or manual workflow_dispatch.
 
 on:
   push:
