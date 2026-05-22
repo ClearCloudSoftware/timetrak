@@ -61,6 +61,49 @@ pub fn today_iso() -> String {
     Utc::now().format("%Y-%m-%d").to_string()
 }
 
+use std::sync::Arc;
+use std::time::Duration;
+use tauri::{AppHandle, Manager};
+use tauri_plugin_notification::NotificationExt;
+
+/// Spawns a tokio task that wakes once per minute, checks whether the
+/// summary time has passed for "today", and posts a notification if it
+/// hasn't already been posted today.
+pub fn spawn_scheduler(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            if let Err(e) = tick(&app).await {
+                eprintln!("notification scheduler error: {e}");
+            }
+            tokio::time::sleep(Duration::from_secs(60)).await;
+        }
+    });
+}
+
+async fn tick(app: &AppHandle) -> AppResult<()> {
+    let db: tauri::State<'_, crate::db::Database> = app.state();
+    let conn = db.conn.lock().unwrap();
+    let summary_time = get_summary_time(&conn)?;
+    let now = chrono::Local::now().time();
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    if now < summary_time { return Ok(()); }
+    if get_last_summary_date(&conn)?.as_deref() == Some(today.as_str()) {
+        return Ok(());
+    }
+    let body = build_summary_body(&conn)?;
+    set_last_summary_date(&conn, &today)?;
+    drop(conn);
+
+    let _ = app
+        .notification()
+        .builder()
+        .title("TimeTrak — daily summary")
+        .body(&body)
+        .show();
+    let _ = Arc::new(()); // keep import warning quiet if unused
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
