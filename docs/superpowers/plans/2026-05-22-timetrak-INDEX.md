@@ -160,6 +160,7 @@ string at the Tauri boundary.
 | `stopTimer()` | `stop_timer() -> AppResult<Option<TimeEntry>>` | 02 |
 | `switchTimer(categoryId, projectId, note)` | `switch_timer(category_id: Uuid, project_id: Option<Uuid>, note: Option<String>) -> AppResult<TimeEntry>` | 02 |
 | `exportCsv(startUtc, endUtc)` | `export_csv(start_utc: DateTime<Utc>, end_utc: DateTime<Utc>) -> AppResult<String>` | 03 |
+| `openWindow(name)` | `open_window(name: String) -> AppResult<()>` | v0.2 |
 
 ### Tauri events
 

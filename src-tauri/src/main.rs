@@ -49,8 +49,8 @@ fn main() {
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show_dashboard" => { let _ = open_window(app, "dashboard"); }
-                    "show_settings" => { let _ = open_window(app, "settings"); }
+                    "show_dashboard" => { let _ = timetrak_lib::commands::windows::open_window(app.clone(), "dashboard".into()); }
+                    "show_settings" => { let _ = timetrak_lib::commands::windows::open_window(app.clone(), "settings".into()); }
                     "quit" => { app.exit(0); }
                     _ => {}
                 })
@@ -127,24 +127,3 @@ fn compute_popover_position(rect: tauri::Rect) -> tauri::PhysicalPosition<f64> {
     tauri::PhysicalPosition::new(x, y)
 }
 
-fn open_window(app: &tauri::AppHandle, name: &str) -> tauri::Result<()> {
-    if let Some(w) = app.get_webview_window(name) {
-        w.show()?;
-        w.set_focus()?;
-        return Ok(());
-    }
-    let title = match name {
-        "dashboard" => "TimeTrak — Dashboard",
-        "settings" => "TimeTrak — Settings",
-        _ => "TimeTrak",
-    };
-    WebviewWindowBuilder::new(
-        app,
-        name,
-        WebviewUrl::App(format!("index.html?window={}", name).into()),
-    )
-    .title(title)
-    .inner_size(900.0, 600.0)
-    .build()?;
-    Ok(())
-}

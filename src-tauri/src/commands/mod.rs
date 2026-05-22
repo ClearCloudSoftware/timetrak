@@ -6,6 +6,7 @@ pub mod entries;
 pub mod export;
 pub mod projects;
 pub mod timer;
+pub mod windows;
 
 /// Builds the Tauri invoke_handler. Add new command functions to the
 /// `tauri::generate_handler!` list as follow-up plans land.
@@ -30,6 +31,7 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::projects::create_project,
             timetrak_lib::commands::projects::update_project,
             timetrak_lib::commands::projects::delete_project,
+            timetrak_lib::commands::windows::open_window,
             // (other plans append here)
         ]
     };
