@@ -18,6 +18,9 @@ fn main() {
         ))
         .invoke_handler(timetrak_lib::timetrak_handlers!())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             // Database
             let data_dir = app.path().app_data_dir().expect("app data dir");
             let db = Database::open(&data_dir.join("timetrak.sqlite"))
