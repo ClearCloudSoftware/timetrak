@@ -105,7 +105,16 @@ fn toggle_tray_window(app: &tauri::AppHandle, tray_rect: Option<tauri::Rect>) {
     if let Some(p) = position {
         builder = builder.position(p.x, p.y);
     }
-    let _ = builder.build();
+    if let Ok(window) = builder.build() {
+        // Hide the popover when it loses focus — clicking outside (or opening
+        // another window via the header icons) auto-dismisses it.
+        let win_for_blur = window.clone();
+        window.on_window_event(move |event| {
+            if let tauri::WindowEvent::Focused(false) = event {
+                let _ = win_for_blur.hide();
+            }
+        });
+    }
 }
 
 #[cfg(target_os = "macos")]
