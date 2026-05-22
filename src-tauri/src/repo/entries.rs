@@ -150,6 +150,58 @@ fn has_overlap(
     Ok(cnt > 0)
 }
 
+pub fn update(conn: &Connection, id: Uuid, edit: &EntryEdit) -> AppResult<TimeEntry> {
+    if let Some(end) = edit.ended_at {
+        if end <= edit.started_at {
+            return Err(AppError::Invalid("ended_at must be after started_at".into()));
+        }
+    }
+    if has_overlap(conn, Some(id), edit.started_at, edit.ended_at)? {
+        return Err(AppError::Overlap);
+    }
+    let rows = conn.execute(
+        "UPDATE time_entry SET category_id = ?2, project_id = ?3, started_at = ?4, ended_at = ?5, note = ?6
+         WHERE id = ?1",
+        rusqlite::params![
+            id.to_string(),
+            edit.category_id.to_string(),
+            edit.project_id.map(|p| p.to_string()),
+            iso(edit.started_at),
+            edit.ended_at.map(iso),
+            edit.note,
+        ],
+    )?;
+    if rows == 0 {
+        return Err(AppError::NotFound(format!("entry {}", id)));
+    }
+    find(conn, id)
+}
+
+pub fn delete(conn: &Connection, id: Uuid) -> AppResult<()> {
+    let rows = conn.execute("DELETE FROM time_entry WHERE id = ?1", [id.to_string()])?;
+    if rows == 0 {
+        return Err(AppError::NotFound(format!("entry {}", id)));
+    }
+    Ok(())
+}
+
+/// Closes any running entry by setting ended_at = now. Returns the
+/// previously-running entry, or None if nothing was running.
+pub fn stop_running_now(conn: &Connection, now: DateTime<Utc>) -> AppResult<Option<TimeEntry>> {
+    let running_id: Option<String> = conn.query_row(
+        "SELECT id FROM time_entry WHERE ended_at IS NULL",
+        [],
+        |r| r.get(0),
+    ).optional()?;
+    let Some(id_s) = running_id else { return Ok(None); };
+    conn.execute(
+        "UPDATE time_entry SET ended_at = ?1 WHERE id = ?2",
+        rusqlite::params![iso(now), id_s],
+    )?;
+    let id = Uuid::parse_str(&id_s).map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(Some(find(conn, id)?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,5 +305,65 @@ mod tests {
             note: None,
         }).unwrap_err();
         assert!(matches!(err, AppError::AlreadyRunning));
+    }
+
+    #[test]
+    fn update_changes_fields_and_rejects_overlap() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        let a = insert_closed(&conn, meeting(), "2026-05-22T10:00:00Z", "2026-05-22T11:00:00Z");
+        let b = insert_closed(&conn, meeting(), "2026-05-22T12:00:00Z", "2026-05-22T13:00:00Z");
+        // Move b to overlap a -> error
+        let err = update(&conn, b, &EntryEdit {
+            category_id: meeting(),
+            project_id: None,
+            started_at: t("2026-05-22T10:30:00Z"),
+            ended_at: Some(t("2026-05-22T11:30:00Z")),
+            note: None,
+        }).unwrap_err();
+        assert!(matches!(err, AppError::Overlap));
+        // Move b to a non-overlapping range -> ok
+        let updated = update(&conn, b, &EntryEdit {
+            category_id: coding(),
+            project_id: None,
+            started_at: t("2026-05-22T14:00:00Z"),
+            ended_at: Some(t("2026-05-22T15:00:00Z")),
+            note: Some("refactor".into()),
+        }).unwrap();
+        assert_eq!(updated.category_id, coding());
+        assert_eq!(updated.note.as_deref(), Some("refactor"));
+        assert_eq!(updated.id, b);
+        let _ = a; // silence unused
+    }
+
+    #[test]
+    fn delete_removes_row() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        let a = insert_closed(&conn, meeting(), "2026-05-22T10:00:00Z", "2026-05-22T11:00:00Z");
+        delete(&conn, a).unwrap();
+        assert!(find(&conn, a).is_err());
+    }
+
+    #[test]
+    fn stop_running_now_closes_running_entry() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        let id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO time_entry (id, category_id, started_at) VALUES (?1, ?2, '2026-05-22T10:00:00Z')",
+            rusqlite::params![id.to_string(), meeting().to_string()],
+        ).unwrap();
+        let stopped = stop_running_now(&conn, t("2026-05-22T11:00:00Z")).unwrap().unwrap();
+        assert_eq!(stopped.id, id);
+        assert_eq!(stopped.ended_at, Some(t("2026-05-22T11:00:00Z")));
+        assert!(running(&conn).unwrap().is_none());
+    }
+
+    #[test]
+    fn stop_running_now_returns_none_when_nothing_running() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        assert!(stop_running_now(&conn, t("2026-05-22T11:00:00Z")).unwrap().is_none());
     }
 }
