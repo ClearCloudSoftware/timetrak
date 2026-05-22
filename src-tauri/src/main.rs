@@ -80,7 +80,7 @@ fn toggle_tray_window(app: &tauri::AppHandle) {
         TRAY_WINDOW_LABEL,
         WebviewUrl::App("index.html?window=tray".into()),
     )
-    .inner_size(340.0, 440.0)
+    .inner_size(280.0, 340.0)
     .decorations(false)
     .resizable(false)
     .always_on_top(true)

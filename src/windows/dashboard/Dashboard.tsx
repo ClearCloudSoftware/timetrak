@@ -6,15 +6,25 @@ import * as api from '../../lib/api';
 import { onEntriesChanged, onTimerChanged } from '../../lib/events';
 import { qk } from '../../lib/query';
 import type { TimeEntry } from '../../types';
-import { DateRangePicker } from './DateRangePicker';
-import { EntryRow } from './EntryRow';
 import { startOfWeekUtc } from './format';
-import { ChartsPanel } from './ChartsPanel';
 import { EntryEditorSheet } from './EntryEditorSheet';
+import { TableView } from './views/TableView';
+import { TimelineView } from './views/TimelineView';
+import { HeatmapView } from './views/HeatmapView';
+import type { DashViewProps, DashView } from './views/types';
+
+const FONT = { fontFamily: 'system-ui, -apple-system, sans-serif' } as const;
+
+const VIEWS: { id: DashView; label: string; glyph: string }[] = [
+  { id: 'table',    label: 'Table',    glyph: '☰' },
+  { id: 'timeline', label: 'Timeline', glyph: '⏱' },
+  { id: 'heatmap',  label: 'Heatmap',  glyph: '▦' },
+];
 
 export function Dashboard() {
   const qc = useQueryClient();
   const [range, setRange] = useState(startOfWeekUtc());
+  const [view, setView] = useState<DashView>('table');
 
   const entries = useQuery({
     queryKey: qk.entries(range.startUtc, range.endUtc),
@@ -25,15 +35,9 @@ export function Dashboard() {
 
   useEffect(() => {
     const unsubs: Array<() => void> = [];
-    onEntriesChanged(() => qc.invalidateQueries({ queryKey: ['entries'] })).then((u) =>
-      unsubs.push(u),
-    );
-    onTimerChanged(() => qc.invalidateQueries({ queryKey: ['entries'] })).then((u) =>
-      unsubs.push(u),
-    );
-    return () => {
-      unsubs.forEach((u) => u());
-    };
+    onEntriesChanged(() => qc.invalidateQueries({ queryKey: ['entries'] })).then((u) => unsubs.push(u));
+    onTimerChanged(() => qc.invalidateQueries({ queryKey: ['entries'] })).then((u) => unsubs.push(u));
+    return () => { unsubs.forEach((u) => u()); };
   }, [qc]);
 
   const [editing, setEditing] = useState<TimeEntry | null>(null);
@@ -52,19 +56,26 @@ export function Dashboard() {
     if (path) await writeTextFile(path, csv);
   };
 
+  const props: DashViewProps = {
+    entries: entries.data ?? [],
+    categories: categories.data ?? [],
+    projects: projects.data ?? [],
+    range,
+    onRangeChange: setRange,
+    onEdit: setEditing,
+    onDelete: (e) => deleteMut.mutate(e.id),
+    isLoading: entries.isLoading,
+  };
+
   return (
-    <div className="flex h-screen flex-col bg-white">
-      {/* Top bar */}
-      <header className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3">
-        <h1 className="text-base font-semibold text-gray-900">Dashboard</h1>
-        <div className="flex items-center gap-3">
-          <DateRangePicker
-            startUtc={range.startUtc}
-            endUtc={range.endUtc}
-            onChange={setRange}
-          />
+    <div className="flex h-screen flex-col bg-white text-[#1d1d1f]" style={FONT}>
+      {/* Top bar — title, view toggle, export */}
+      <header className="flex shrink-0 items-center gap-3 border-b border-black/5 px-3 py-1.5">
+        <div className="text-[13px] font-medium">Dashboard</div>
+        <div className="ml-auto flex items-center gap-2">
+          <ViewToggle value={view} onChange={setView} />
           <button
-            className="cursor-pointer rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+            className="h-6 rounded-md bg-[#0a84ff] px-2.5 text-[11px] font-medium text-white hover:bg-[#0a74e0]"
             onClick={onExport}
           >
             Export CSV
@@ -72,60 +83,11 @@ export function Dashboard() {
         </div>
       </header>
 
-      {/* Charts row — reserved space, real components land in Task 6 */}
-      <ChartsPanel
-        entries={entries.data ?? []}
-        categories={categories.data ?? []}
-        projects={projects.data ?? []}
-      />
-
-      {/* Entries table */}
-      <main className="mt-0 flex-1 overflow-auto">
-        <table className="w-full border-collapse">
-          <thead className="sticky top-0 z-10 bg-gray-50">
-            <tr className="border-b border-gray-200">
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Started
-              </th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Ended
-              </th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Duration
-              </th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Category
-              </th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Project
-              </th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Note
-              </th>
-              <th className="px-3 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {entries.data?.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-sm text-gray-400">
-                  No entries in this date range.
-                </td>
-              </tr>
-            )}
-            {(entries.data ?? []).map((e) => (
-              <EntryRow
-                key={e.id}
-                entry={e}
-                categories={categories.data ?? []}
-                projects={projects.data ?? []}
-                onEdit={setEditing}
-                onDelete={(x) => deleteMut.mutate(x.id)}
-              />
-            ))}
-          </tbody>
-        </table>
-      </main>
+      <div className="flex-1 overflow-hidden">
+        {view === 'table'    && <TableView {...props} />}
+        {view === 'timeline' && <TimelineView {...props} />}
+        {view === 'heatmap'  && <HeatmapView {...props} />}
+      </div>
 
       {editing && (
         <EntryEditorSheet
@@ -139,6 +101,28 @@ export function Dashboard() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function ViewToggle({ value, onChange }: { value: DashView; onChange: (v: DashView) => void }) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-md bg-black/[0.06] p-0.5">
+      {VIEWS.map((v) => (
+        <button
+          key={v.id}
+          onClick={() => onChange(v.id)}
+          className={
+            'flex items-center gap-1 rounded-[5px] px-2 py-0.5 text-[11px] transition-colors ' +
+            (value === v.id
+              ? 'bg-white text-[#1d1d1f] shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
+              : 'text-[#86868b] hover:text-[#1d1d1f]')
+          }
+        >
+          <span className="text-[12px] leading-none">{v.glyph}</span>
+          <span>{v.label}</span>
+        </button>
+      ))}
     </div>
   );
 }
