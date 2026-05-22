@@ -49,3 +49,7 @@ export const switchTimer = (categoryId: Id, projectId: Id | null, note: string |
 // --- Export (plan 03) ---
 export const exportCsv = (startUtc: string, endUtc: string) =>
   invoke<string>('export_csv', { startUtc, endUtc });
+
+// --- Windows (v0.2) ---
+export const openWindow = (name: 'dashboard' | 'settings') =>
+  invoke<void>('open_window', { name });
