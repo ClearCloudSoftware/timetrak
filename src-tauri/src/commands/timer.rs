@@ -47,5 +47,5 @@ pub fn switch_timer(
 }
 
 fn emit_changed(app: &AppHandle, running: Option<&TimeEntry>) {
-    let _ = app.emit("timer-changed", serde_json::json!({ "running": running }));
+    let _ = app.emit(crate::events::TIMER_CHANGED, serde_json::json!({ "running": running }));
 }

@@ -1,5 +1,11 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { TimeEntry } from '../types';
+import {
+  EVENT_TIMER_CHANGED,
+  EVENT_ENTRIES_CHANGED,
+  EVENT_CATEGORIES_CHANGED,
+  EVENT_PROJECTS_CHANGED,
+} from './event-names';
 
 export interface TimerChanged {
   running: TimeEntry | null;
@@ -9,13 +15,13 @@ export interface CategoriesChanged {}
 export interface ProjectsChanged {}
 
 export const onTimerChanged = (cb: (e: TimerChanged) => void): Promise<UnlistenFn> =>
-  listen<TimerChanged>('timer-changed', (evt) => cb(evt.payload));
+  listen<TimerChanged>(EVENT_TIMER_CHANGED, (evt) => cb(evt.payload));
 
 export const onEntriesChanged = (cb: () => void): Promise<UnlistenFn> =>
-  listen<EntriesChanged>('entries-changed', () => cb());
+  listen<EntriesChanged>(EVENT_ENTRIES_CHANGED, () => cb());
 
 export const onCategoriesChanged = (cb: () => void): Promise<UnlistenFn> =>
-  listen<CategoriesChanged>('categories-changed', () => cb());
+  listen<CategoriesChanged>(EVENT_CATEGORIES_CHANGED, () => cb());
 
 export const onProjectsChanged = (cb: () => void): Promise<UnlistenFn> =>
-  listen<ProjectsChanged>('projects-changed', () => cb());
+  listen<ProjectsChanged>(EVENT_PROJECTS_CHANGED, () => cb());

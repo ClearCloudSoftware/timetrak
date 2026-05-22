@@ -3,6 +3,7 @@ pub mod csv_export;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod events;
 pub mod notifications;
 pub mod repo;
 pub mod reporting;

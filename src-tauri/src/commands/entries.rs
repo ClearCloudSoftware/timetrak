@@ -25,7 +25,7 @@ pub fn create_entry(
 ) -> AppResult<TimeEntry> {
     let conn = db.conn.lock().unwrap();
     let e = repo::entries::create(&conn, &entry)?;
-    let _ = app.emit("entries-changed", ());
+    let _ = app.emit(crate::events::ENTRIES_CHANGED, ());
     Ok(e)
 }
 
@@ -38,7 +38,7 @@ pub fn update_entry(
 ) -> AppResult<TimeEntry> {
     let conn = db.conn.lock().unwrap();
     let e = repo::entries::update(&conn, id, &edit)?;
-    let _ = app.emit("entries-changed", ());
+    let _ = app.emit(crate::events::ENTRIES_CHANGED, ());
     Ok(e)
 }
 
@@ -50,6 +50,6 @@ pub fn delete_entry(
 ) -> AppResult<()> {
     let conn = db.conn.lock().unwrap();
     repo::entries::delete(&conn, id)?;
-    let _ = app.emit("entries-changed", ());
+    let _ = app.emit(crate::events::ENTRIES_CHANGED, ());
     Ok(())
 }
