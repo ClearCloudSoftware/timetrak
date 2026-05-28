@@ -28,7 +28,7 @@ tokio = { version = "1", features = ["sync", "time", "rt-multi-thread", "macros"
 async-trait = "0.1"
 keyring = "3"
 ical = "0.11"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 rrule = "0.13"
 
 [dev-dependencies]
