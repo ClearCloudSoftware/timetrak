@@ -21,12 +21,19 @@ use crate::calendar::provider::CalendarProvider;
 use crate::calendar::types::{CalendarEvent, DiscoveredCalendar};
 use crate::error::{AppError, AppResult};
 
-/// Replace with a real client ID before shipping. Read at build time from
-/// the `TIMETRAK_GOOGLE_CLIENT_ID` environment variable; falls back to an
-/// obvious placeholder.
+/// Bundled at build time from the `TIMETRAK_GOOGLE_CLIENT_ID` env var.
 pub const GOOGLE_CLIENT_ID: &str = match option_env!("TIMETRAK_GOOGLE_CLIENT_ID") {
     Some(v) => v,
     None => "REPLACE_ME.apps.googleusercontent.com",
+};
+
+/// Bundled at build time from the `TIMETRAK_GOOGLE_CLIENT_SECRET` env var.
+/// Google requires the client_secret on the /token endpoint even for
+/// "TVs and Limited Input Devices" clients. Per Google's own guidance,
+/// this value is not actually secret in a desktop installation.
+pub const GOOGLE_CLIENT_SECRET: &str = match option_env!("TIMETRAK_GOOGLE_CLIENT_SECRET") {
+    Some(v) => v,
+    None => "REPLACE_ME_SECRET",
 };
 
 /// Scope: read-only calendar access.
@@ -102,6 +109,7 @@ pub async fn poll_token(
         .post(TOKEN_URL)
         .form(&[
             ("client_id", GOOGLE_CLIENT_ID),
+            ("client_secret", GOOGLE_CLIENT_SECRET),
             ("device_code", device_code),
             ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
         ])
@@ -128,12 +136,17 @@ pub async fn poll_token(
     }
 
     let err = body.get("error").and_then(|v| v.as_str()).unwrap_or("");
+    let desc = body.get("error_description").and_then(|v| v.as_str()).unwrap_or("");
     Ok(match err {
         "authorization_pending" => PollOutcome::Pending,
         "slow_down" => PollOutcome::SlowDown,
         "access_denied" => PollOutcome::Denied,
         "expired_token" => PollOutcome::Expired,
-        other => PollOutcome::Other(other.to_string()),
+        other => PollOutcome::Other(if desc.is_empty() {
+            other.to_string()
+        } else {
+            format!("{other}: {desc}")
+        }),
     })
 }
 
@@ -147,6 +160,7 @@ pub async fn refresh_access_token(
         .post(TOKEN_URL)
         .form(&[
             ("client_id", GOOGLE_CLIENT_ID),
+            ("client_secret", GOOGLE_CLIENT_SECRET),
             ("refresh_token", refresh_token),
             ("grant_type", "refresh_token"),
         ])
