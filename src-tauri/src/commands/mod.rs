@@ -46,6 +46,9 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::calendar::calendar_sync_now,
             timetrak_lib::commands::calendar::pending_conflicts_list,
             timetrak_lib::commands::calendar::pending_conflict_resolve,
+            timetrak_lib::calendar::scheduler::calendar_extend,
+            timetrak_lib::calendar::scheduler::calendar_stop_meeting,
+            timetrak_lib::calendar::scheduler::calendar_undo_switch,
             // (other plans append here)
         ]
     };

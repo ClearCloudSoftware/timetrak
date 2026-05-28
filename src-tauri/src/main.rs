@@ -28,6 +28,10 @@ fn main() {
             app.manage(db);
             app.manage(timetrak_lib::commands::windows::PendingNewEntry::default());
             app.manage(timetrak_lib::commands::calendar::DeviceCodeState(std::sync::Mutex::new(None)));
+
+            let scheduler = std::sync::Arc::new(timetrak_lib::calendar::scheduler::Scheduler::new());
+            app.manage(scheduler.clone());
+            scheduler.spawn(app.handle().clone());
             timetrak_lib::notifications::spawn_scheduler(app.handle().clone());
 
             // Tray menu

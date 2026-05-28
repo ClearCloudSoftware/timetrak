@@ -80,3 +80,9 @@ export const pendingConflictsList = () =>
   invoke<PendingImport[]>('pending_conflicts_list');
 export const pendingConflictResolve = (id: string, action: ResolutionAction) =>
   invoke<void>('pending_conflict_resolve', { id, action });
+export const calendarUndoSwitch = (entryId: string, previousEntryId: string | null) =>
+  invoke<void>('calendar_undo_switch', { entryId, previousEntryId });
+export const calendarExtend = (entryId: string) =>
+  invoke<void>('calendar_extend', { entryId });
+export const calendarStopMeeting = (entryId: string) =>
+  invoke<void>('calendar_stop_meeting', { entryId });

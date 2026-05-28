@@ -17,6 +17,7 @@ import { QuickStartCard } from './QuickStartCard';
 import { TodayList } from './TodayList';
 import { TodayEntryRow } from './TodayEntryRow';
 import { TodayFooter } from './TodayFooter';
+import { CalendarToasts } from './CalendarToasts';
 
 // ---------------------------------------------------------------------------
 // Mode state machine
@@ -282,6 +283,10 @@ export function TrayPopover() {
       style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
     >
       <Header onError={setErrorMessage} />
+
+      <div className="px-2 pt-1.5">
+        <CalendarToasts />
+      </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
         {/* Running status card — only when tracking */}
