@@ -14,6 +14,7 @@ import { qk } from '../../lib/query';
 import type { TimeEntry } from '../../types';
 import { startOfWeekUtc } from './format';
 import { EntryEditorSheet } from './EntryEditorSheet';
+import { ConflictsPanel } from './ConflictsPanel';
 import { TableView } from './views/TableView';
 import { TimelineView } from './views/TimelineView';
 import { HeatmapView } from './views/HeatmapView';
@@ -107,6 +108,8 @@ export function Dashboard() {
           </button>
         </div>
       </header>
+
+      <ConflictsPanel />
 
       <div className="flex-1 overflow-hidden">
         {view === 'table'    && <TableView {...props} />}

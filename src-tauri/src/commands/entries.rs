@@ -38,6 +38,10 @@ pub fn update_entry(
 ) -> AppResult<TimeEntry> {
     let conn = db.conn.lock().unwrap();
     let e = repo::entries::update(&conn, id, &edit)?;
+    // Detach from calendar source so future syncs don't overwrite this manual edit.
+    if e.source_event_id.is_some() && !e.source_edited_locally {
+        repo::entries::mark_edited_locally(&conn, id)?;
+    }
     let _ = app.emit(crate::events::ENTRIES_CHANGED, ());
     Ok(e)
 }

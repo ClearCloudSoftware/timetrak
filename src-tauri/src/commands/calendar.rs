@@ -348,10 +348,57 @@ pub fn pending_conflict_resolve(
     id: Uuid,
     action: ResolutionAction,
 ) -> AppResult<()> {
-    let conn = db.conn.lock().unwrap();
-    repo::pending_imports::resolve(&conn, id, action)?;
-    drop(conn);
+    {
+        let conn = db.conn.lock().unwrap();
+        let pending = repo::pending_imports::list_pending(&conn)?
+            .into_iter()
+            .find(|p| p.id == id)
+            .ok_or_else(|| AppError::NotFound(format!("pending {id}")))?;
+
+        match action {
+            ResolutionAction::KeptMine | ResolutionAction::Edited => {
+                repo::pending_imports::resolve(&conn, id, action)?;
+            }
+            ResolutionAction::UsedCalendar => {
+                // In one transaction: delete overlapping non-edited entries,
+                // create the calendar entry, mark resolved.
+                let tx = conn.unchecked_transaction()?;
+                let overlapping = repo::entries::list_in_range(
+                    &tx,
+                    pending.started_at,
+                    pending.ended_at,
+                )?;
+                for e in overlapping {
+                    // Don't touch other source-linked entries that the user has edited.
+                    if e.source_edited_locally {
+                        continue;
+                    }
+                    repo::entries::delete(&tx, e.id)?;
+                }
+                let meeting_cat: String = tx.query_row(
+                    "SELECT value FROM app_meta WHERE key = 'meeting_category_id'",
+                    [],
+                    |r| r.get(0),
+                ).map_err(|_| AppError::Invalid("meeting_category_id not set".into()))?;
+                let meeting_cat = Uuid::parse_str(&meeting_cat)
+                    .map_err(|e| AppError::Other(e.to_string()))?;
+                repo::entries::create(&tx, &crate::domain::NewEntry {
+                    category_id: meeting_cat,
+                    project_id: None,
+                    started_at: pending.started_at,
+                    ended_at: Some(pending.ended_at),
+                    note: Some(pending.title.clone()),
+                    source: "calendar".into(),
+                    source_event_id: Some(pending.source_event_id.clone()),
+                    source_calendar_id: Some(pending.source_calendar_id.clone()),
+                })?;
+                repo::pending_imports::resolve(&tx, id, action)?;
+                tx.commit()?;
+            }
+        }
+    }
     let _ = app.emit_to_all("calendar-conflicts-changed", ());
+    let _ = app.emit_to_all(crate::events::ENTRIES_CHANGED, ());
     Ok(())
 }
 
