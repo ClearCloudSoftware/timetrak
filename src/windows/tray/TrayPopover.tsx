@@ -316,13 +316,30 @@ export function TrayPopover() {
             submitting={startOrSwitchMut.isPending}
           />
         ) : (
-          <button
-            type="button"
-            onClick={handleNew}
-            className="w-full rounded-md border border-dashed border-black/15 bg-white/40 px-3 py-1.5 text-[11px] text-[#86868b] transition-colors hover:border-black/30 hover:bg-white/70 hover:text-[#1d1d1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]"
-          >
-            ＋ New timer
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleNew}
+              className="flex-1 rounded-md border border-dashed border-black/15 bg-white/40 px-3 py-1.5 text-[11px] text-[#86868b] transition-colors hover:border-black/30 hover:bg-white/70 hover:text-[#1d1d1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]"
+            >
+              ＋ New timer
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await api.requestNewEntry();
+                  await getCurrentWindow().hide();
+                } catch (err) {
+                  setErrorMessage(String(err));
+                }
+              }}
+              className="rounded-md px-2 py-1.5 text-[11px] text-[#86868b] transition-colors hover:bg-black/[0.04] hover:text-[#1d1d1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]"
+              title="Add an entry for time already past"
+            >
+              Add past entry…
+            </button>
+          </div>
         )}
 
         {/* Today's entries — always below */}

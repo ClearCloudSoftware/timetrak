@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { listen } from '@tauri-apps/api/event';
 import * as api from '../../lib/api';
 import {
   onEntriesChanged,
@@ -48,6 +49,17 @@ export function Dashboard() {
   }, [qc]);
 
   const [editing, setEditing] = useState<TimeEntry | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  // Honor the tray's "Add past entry…" request: a pending flag is set on the
+  // Rust side before this window opens, and an event is emitted in case the
+  // window was already open.
+  useEffect(() => {
+    let cancelled = false;
+    api.consumePendingNewEntry().then((p) => { if (p && !cancelled) setCreating(true); });
+    const unlistenPromise = listen('open-new-entry', () => setCreating(true));
+    return () => { cancelled = true; unlistenPromise.then((u) => u()); };
+  }, []);
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.deleteEntry(id),
@@ -82,6 +94,12 @@ export function Dashboard() {
         <div className="ml-auto flex items-center gap-2">
           <ViewToggle value={view} onChange={setView} />
           <button
+            className="h-6 rounded-md border border-black/10 bg-white px-2.5 text-[11px] font-medium text-[#1d1d1f] hover:bg-black/[0.04]"
+            onClick={() => setCreating(true)}
+          >
+            ＋ New entry
+          </button>
+          <button
             className="h-6 rounded-md bg-[#0a84ff] px-2.5 text-[11px] font-medium text-white hover:bg-[#0a74e0]"
             onClick={onExport}
           >
@@ -98,12 +116,24 @@ export function Dashboard() {
 
       {editing && (
         <EntryEditorSheet
-          entry={editing}
+          mode={{ kind: 'edit', entry: editing }}
           categories={categories.data ?? []}
           projects={projects.data ?? []}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
+            qc.invalidateQueries({ queryKey: ['entries'] });
+          }}
+        />
+      )}
+      {creating && (
+        <EntryEditorSheet
+          mode={{ kind: 'create' }}
+          categories={categories.data ?? []}
+          projects={projects.data ?? []}
+          onClose={() => setCreating(false)}
+          onSaved={() => {
+            setCreating(false);
             qc.invalidateQueries({ queryKey: ['entries'] });
           }}
         />

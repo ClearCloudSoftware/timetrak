@@ -53,3 +53,5 @@ export const exportCsv = (startUtc: string, endUtc: string) =>
 // --- Windows (v0.2) ---
 export const openWindow = (name: 'dashboard' | 'settings') =>
   invoke<void>('open_window', { name });
+export const requestNewEntry = () => invoke<void>('request_new_entry');
+export const consumePendingNewEntry = () => invoke<boolean>('consume_pending_new_entry');

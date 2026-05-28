@@ -32,6 +32,8 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::projects::update_project,
             timetrak_lib::commands::projects::delete_project,
             timetrak_lib::commands::windows::open_window,
+            timetrak_lib::commands::windows::request_new_entry,
+            timetrak_lib::commands::windows::consume_pending_new_entry,
             // (other plans append here)
         ]
     };

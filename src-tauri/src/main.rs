@@ -26,6 +26,7 @@ fn main() {
             let db = Database::open(&data_dir.join("timetrak.sqlite"))
                 .expect("open database");
             app.manage(db);
+            app.manage(timetrak_lib::commands::windows::PendingNewEntry::default());
             timetrak_lib::notifications::spawn_scheduler(app.handle().clone());
 
             // Tray menu
