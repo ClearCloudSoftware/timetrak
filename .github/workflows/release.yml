@@ -38,17 +38,13 @@ jobs:
 
       - run: npm ci
 
-      - name: Build
+      - name: Build (unsigned)
         env:
-          # Optional code signing — set these secrets in the repo to enable.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Google OAuth client for the device-code flow. Optional —
+          # without it the calendar OAuth path won't work but the rest
+          # of the app builds fine.
+          TIMETRAK_GOOGLE_CLIENT_ID: ${{ secrets.TIMETRAK_GOOGLE_CLIENT_ID }}
+          TIMETRAK_GOOGLE_CLIENT_SECRET: ${{ secrets.TIMETRAK_GOOGLE_CLIENT_SECRET }}
         run: npm run tauri build -- --target ${{ matrix.target }}
 
       - name: Upload artifacts
