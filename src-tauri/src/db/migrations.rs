@@ -3,6 +3,7 @@ use rusqlite::Connection;
 use crate::error::AppResult;
 
 const V2_CALENDAR: &str = include_str!("migrations/v2_calendar.sql");
+const V3_SECRETS: &str = include_str!("migrations/v3_secrets.sql");
 
 struct Migration {
     version: u32,
@@ -11,6 +12,7 @@ struct Migration {
 
 const MIGRATIONS: &[Migration] = &[
     Migration { version: 2, sql: V2_CALENDAR },
+    Migration { version: 3, sql: V3_SECRETS },
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
@@ -51,7 +53,7 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(v, "2");
+        assert_eq!(v, "3");
         let cols: Vec<String> = conn
             .prepare("PRAGMA table_info(time_entry)")
             .unwrap()

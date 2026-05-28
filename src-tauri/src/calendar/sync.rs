@@ -21,8 +21,8 @@ use uuid::Uuid;
 use crate::calendar::ics::{IcsCalendarConfig, IcsProvider};
 use crate::calendar::oauth::{self, OAuthProvider, StoredTokens};
 use crate::calendar::provider::CalendarProvider;
+use crate::calendar::secret_store;
 use crate::calendar::types::{CalendarEvent, CalendarSource, NewPendingImport};
-use crate::calendar::keychain;
 use crate::db::Database;
 use crate::domain::{EntryEdit, NewEntry};
 use crate::error::{AppError, AppResult};
@@ -293,20 +293,26 @@ fn delete_unseen(
 }
 
 async fn build_provider(
-    _db: &Database,
+    db: &Database,
     src: &CalendarSource,
 ) -> AppResult<Box<dyn CalendarProvider>> {
     match src.kind.as_str() {
         "ics" => {
-            let configs_json = keychain::get(&src.keychain_ref)?
-                .ok_or_else(|| AppError::Other("ICS configs missing from keychain".into()))?;
+            let configs_json = {
+                let conn = db.conn.lock().unwrap();
+                secret_store::get(&conn, &src.keychain_ref)?
+                    .ok_or_else(|| AppError::Other("ICS configs missing from store".into()))?
+            };
             let configs: Vec<IcsCalendarConfig> = serde_json::from_str(&configs_json)
                 .map_err(|e| AppError::Other(format!("ICS configs parse: {e}")))?;
             Ok(Box::new(IcsProvider::new(configs)))
         }
         "oauth" => {
-            let stored_json = keychain::get(&src.keychain_ref)?
-                .ok_or_else(|| AppError::Other("OAuth tokens missing from keychain".into()))?;
+            let stored_json = {
+                let conn = db.conn.lock().unwrap();
+                secret_store::get(&conn, &src.keychain_ref)?
+                    .ok_or_else(|| AppError::Other("OAuth tokens missing from store".into()))?
+            };
             let mut stored: StoredOAuth = serde_json::from_str(&stored_json)
                 .map_err(|e| AppError::Other(format!("OAuth tokens parse: {e}")))?;
             let client = reqwest::Client::new();
@@ -318,10 +324,9 @@ async fn build_provider(
                     access_expires_at: refreshed.access_expires_at,
                     account_email: stored.account_email.clone(),
                 };
-                keychain::put(
-                    &src.keychain_ref,
-                    &serde_json::to_string(&stored).unwrap(),
-                )?;
+                let json = serde_json::to_string(&stored).unwrap();
+                let conn = db.conn.lock().unwrap();
+                secret_store::put(&conn, &src.keychain_ref, &json)?;
             }
             Ok(Box::new(OAuthProvider::new(stored.access_token)))
         }

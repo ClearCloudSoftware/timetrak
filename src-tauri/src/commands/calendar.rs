@@ -5,8 +5,8 @@ use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 use crate::calendar::ics::{IcsCalendarConfig, IcsProvider};
-use crate::calendar::keychain;
 use crate::calendar::oauth::{self, PollOutcome};
+use crate::calendar::secret_store;
 use crate::calendar::provider::CalendarProvider;
 use crate::calendar::sync::{self, StoredOAuth, SyncReport};
 use crate::calendar::types::{CalendarRow, CalendarSource, DiscoveredCalendar, PendingImport, ResolutionAction};
@@ -105,10 +105,11 @@ pub async fn calendar_connect_ics(
     let provider = IcsProvider::new(configs.clone());
     let discovered = provider.list_calendars().await?;
 
-    keychain::put(KEYCHAIN_REF_ICS, &serde_json::to_string(&configs).unwrap())?;
+    let configs_json = serde_json::to_string(&configs).unwrap();
 
     {
         let conn = db.conn.lock().unwrap();
+        secret_store::put(&conn, KEYCHAIN_REF_ICS, &configs_json)?;
         repo::calendar_source::clear(&conn)?;
         repo::calendar_source::set(
             &conn,
@@ -224,10 +225,11 @@ pub async fn calendar_connect_complete(
                 access_expires_at: tokens.access_expires_at,
                 account_email: email.clone(),
             };
-            keychain::put(KEYCHAIN_REF_OAUTH, &serde_json::to_string(&stored).unwrap())?;
+            let stored_json = serde_json::to_string(&stored).unwrap();
 
             {
                 let conn = db.conn.lock().unwrap();
+                secret_store::put(&conn, KEYCHAIN_REF_OAUTH, &stored_json)?;
                 repo::calendar_source::clear(&conn)?;
                 repo::calendar_source::set(
                     &conn,
@@ -264,19 +266,28 @@ pub async fn calendar_disconnect(db: State<'_, Database>, app: AppHandle) -> App
         repo::calendar_source::get(&conn)?
     };
 
-    if let Some(s) = &src {
+    let oauth_json = if let Some(s) = &src {
         if s.kind == "oauth" {
-            if let Ok(Some(json)) = keychain::get(&s.keychain_ref) {
-                if let Ok(stored) = serde_json::from_str::<StoredOAuth>(&json) {
-                    oauth::revoke_token(&reqwest::Client::new(), &stored.refresh_token).await;
-                }
-            }
+            let conn = db.conn.lock().unwrap();
+            secret_store::get(&conn, &s.keychain_ref)?
+        } else {
+            None
         }
-        let _ = keychain::delete(&s.keychain_ref);
+    } else {
+        None
+    };
+
+    if let Some(json) = oauth_json {
+        if let Ok(stored) = serde_json::from_str::<StoredOAuth>(&json) {
+            oauth::revoke_token(&reqwest::Client::new(), &stored.refresh_token).await;
+        }
     }
 
     {
         let conn = db.conn.lock().unwrap();
+        if let Some(s) = &src {
+            let _ = secret_store::delete(&conn, &s.keychain_ref);
+        }
         repo::calendar_source::clear(&conn)?;
         conn.execute("DELETE FROM calendar", [])?;
         conn.execute("DELETE FROM pending_calendar_import WHERE status = 'pending_conflict'", [])?;
