@@ -4,6 +4,8 @@ use std::sync::Mutex;
 
 use crate::error::AppResult;
 
+pub mod migrations;
+
 /// Owns the SQLite connection. Wrapped in a Mutex because rusqlite::Connection
 /// is not Sync. Tauri stores this as managed state.
 pub struct Database {
@@ -20,10 +22,10 @@ impl Database {
         }
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
-        // v1: schema is idempotent (CREATE IF NOT EXISTS, INSERT OR IGNORE),
-        // so we run it unconditionally. app_meta.schema_version is seeded but
-        // not yet read — a real migration system arrives with the first v2 change.
+        // v1 base schema is idempotent (CREATE IF NOT EXISTS / INSERT OR IGNORE).
+        // It establishes the schema_version row that migrations::run reads from.
         conn.execute_batch(SCHEMA_SQL)?;
+        migrations::run(&conn)?;
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -33,6 +35,7 @@ impl Database {
         let conn = Connection::open_in_memory()?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         conn.execute_batch(SCHEMA_SQL)?;
+        migrations::run(&conn)?;
         Ok(Self { conn: Mutex::new(conn) })
     }
 }
@@ -58,7 +61,7 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(version, "1");
+        assert_eq!(version, "2");
     }
 
     #[test]
