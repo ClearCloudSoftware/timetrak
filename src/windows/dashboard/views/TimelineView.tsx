@@ -65,9 +65,11 @@ export function TimelineView(p: DashViewProps) {
           </div>
         </div>
 
-        <div className="grid flex-1 grid-cols-[64px_1fr] overflow-hidden">
-          <HourScale />
-          <TimelinePane entries={dayEntries} categories={p.categories} projects={p.projects} onEdit={p.onEdit} />
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-[64px_1fr]" style={{ height: 24 * 40 }}>
+            <HourScale />
+            <TimelinePane entries={dayEntries} categories={p.categories} projects={p.projects} onEdit={p.onEdit} />
+          </div>
         </div>
       </main>
     </div>
@@ -95,8 +97,8 @@ function TimelinePane({
   onEdit: (e: TimeEntry) => void;
 }) {
   return (
-    <div className="relative overflow-y-auto">
-      <div className="relative" style={{ height: 24 * 40 }}>
+    <div className="relative h-full">
+      <div className="relative h-full">
         {Array.from({ length: 24 }, (_, h) => (
           <div key={h} className="absolute left-0 right-0 h-px bg-black/[0.04]" style={{ top: h * 40 }} />
         ))}
