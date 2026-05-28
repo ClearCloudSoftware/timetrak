@@ -27,6 +27,7 @@ fn main() {
                 .expect("open database");
             app.manage(db);
             app.manage(timetrak_lib::commands::windows::PendingNewEntry::default());
+            app.manage(timetrak_lib::commands::calendar::DeviceCodeState(std::sync::Mutex::new(None)));
             timetrak_lib::notifications::spawn_scheduler(app.handle().clone());
 
             // Tray menu

@@ -1,11 +1,21 @@
+use chrono::Utc;
 use rusqlite::OptionalExtension;
-use serde::Serialize;
-use tauri::State;
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
+use crate::calendar::ics::{IcsCalendarConfig, IcsProvider};
+use crate::calendar::keychain;
+use crate::calendar::oauth::{self, PollOutcome};
+use crate::calendar::provider::CalendarProvider;
+use crate::calendar::sync::{self, StoredOAuth, SyncReport};
+use crate::calendar::types::{CalendarRow, CalendarSource, DiscoveredCalendar, PendingImport, ResolutionAction};
 use crate::db::Database;
 use crate::error::{AppError, AppResult};
 use crate::repo;
+
+const KEYCHAIN_REF_ICS: &str = "calendar.ics.v1";
+const KEYCHAIN_REF_OAUTH: &str = "calendar.oauth.v1";
 
 #[derive(Serialize)]
 pub struct CalendarStatus {
@@ -64,4 +74,294 @@ pub fn set_meeting_category(db: State<'_, Database>, id: Uuid) -> AppResult<()> 
         [id.to_string()],
     )?;
     Ok(())
+}
+
+// ---------- ICS connect ----------
+
+#[derive(Deserialize)]
+pub struct IcsInput {
+    pub display_name: String,
+    pub url: String,
+}
+
+#[tauri::command]
+pub async fn calendar_connect_ics(
+    db: State<'_, Database>,
+    app: AppHandle,
+    sources: Vec<IcsInput>,
+) -> AppResult<()> {
+    if sources.is_empty() {
+        return Err(AppError::Invalid("at least one ICS URL is required".into()));
+    }
+    let configs: Vec<IcsCalendarConfig> = sources
+        .into_iter()
+        .map(|s| IcsCalendarConfig {
+            id: Uuid::new_v4().to_string(),
+            display_name: s.display_name,
+            url: s.url,
+        })
+        .collect();
+
+    let provider = IcsProvider::new(configs.clone());
+    let discovered = provider.list_calendars().await?;
+
+    keychain::put(KEYCHAIN_REF_ICS, &serde_json::to_string(&configs).unwrap())?;
+
+    {
+        let conn = db.conn.lock().unwrap();
+        repo::calendar_source::clear(&conn)?;
+        repo::calendar_source::set(
+            &conn,
+            &CalendarSource {
+                id: Uuid::new_v4(),
+                kind: "ics".into(),
+                account_email: None,
+                keychain_ref: KEYCHAIN_REF_ICS.into(),
+                connected_at: Utc::now(),
+                last_sync_at: None,
+                last_sync_error: None,
+            },
+        )?;
+        repo::calendars::upsert_many(&conn, &discovered)?;
+        for d in &discovered {
+            repo::calendars::set_enabled(&conn, &d.id, true)?;
+        }
+    }
+
+    let _ = app.emit_to_all("calendar-connected", ());
+    Ok(())
+}
+
+// ---------- OAuth connect (device-code) ----------
+
+pub struct DeviceCodeState(pub std::sync::Mutex<Option<DeviceCodeSession>>);
+
+#[derive(Clone)]
+pub struct DeviceCodeSession {
+    pub device_code: String,
+    pub user_code: String,
+    pub verification_url: String,
+    pub expires_at: chrono::DateTime<Utc>,
+    pub interval: u64,
+}
+
+#[derive(Serialize)]
+pub struct DeviceCodePayload {
+    pub user_code: String,
+    pub verification_url: String,
+    pub expires_in: i64,
+    pub interval: u64,
+}
+
+#[tauri::command]
+pub async fn calendar_connect_start(
+    state: State<'_, DeviceCodeState>,
+) -> AppResult<DeviceCodePayload> {
+    let client = reqwest::Client::new();
+    let resp = oauth::request_device_code(&client).await?;
+    let session = DeviceCodeSession {
+        device_code: resp.device_code.clone(),
+        user_code: resp.user_code.clone(),
+        verification_url: resp.verification_url.clone(),
+        expires_at: Utc::now() + chrono::Duration::seconds(resp.expires_in as i64),
+        interval: resp.interval.max(1),
+    };
+    *state.0.lock().unwrap() = Some(session.clone());
+    Ok(DeviceCodePayload {
+        user_code: session.user_code,
+        verification_url: session.verification_url,
+        expires_in: resp.expires_in as i64,
+        interval: session.interval,
+    })
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ConnectPollResult {
+    Pending,
+    SlowDown,
+    Approved { account_email: Option<String> },
+    Denied,
+    Expired,
+    Error { message: String },
+}
+
+#[tauri::command]
+pub async fn calendar_connect_complete(
+    db: State<'_, Database>,
+    state: State<'_, DeviceCodeState>,
+    app: AppHandle,
+) -> AppResult<ConnectPollResult> {
+    let session = state
+        .0
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| AppError::Invalid("no pending device-code session".into()))?;
+    if Utc::now() > session.expires_at {
+        *state.0.lock().unwrap() = None;
+        return Ok(ConnectPollResult::Expired);
+    }
+    let client = reqwest::Client::new();
+    let outcome = oauth::poll_token(&client, &session.device_code).await?;
+    Ok(match outcome {
+        PollOutcome::Pending => ConnectPollResult::Pending,
+        PollOutcome::SlowDown => ConnectPollResult::SlowDown,
+        PollOutcome::Denied => {
+            *state.0.lock().unwrap() = None;
+            ConnectPollResult::Denied
+        }
+        PollOutcome::Expired => {
+            *state.0.lock().unwrap() = None;
+            ConnectPollResult::Expired
+        }
+        PollOutcome::Other(m) => ConnectPollResult::Error { message: m },
+        PollOutcome::Approved(tokens) => {
+            let email = fetch_userinfo_email(&client, &tokens.access_token).await.ok();
+            let stored = StoredOAuth {
+                access_token: tokens.access_token.clone(),
+                refresh_token: tokens.refresh_token,
+                access_expires_at: tokens.access_expires_at,
+                account_email: email.clone(),
+            };
+            keychain::put(KEYCHAIN_REF_OAUTH, &serde_json::to_string(&stored).unwrap())?;
+
+            {
+                let conn = db.conn.lock().unwrap();
+                repo::calendar_source::clear(&conn)?;
+                repo::calendar_source::set(
+                    &conn,
+                    &CalendarSource {
+                        id: Uuid::new_v4(),
+                        kind: "oauth".into(),
+                        account_email: email.clone(),
+                        keychain_ref: KEYCHAIN_REF_OAUTH.into(),
+                        connected_at: Utc::now(),
+                        last_sync_at: None,
+                        last_sync_error: None,
+                    },
+                )?;
+            }
+
+            let provider = crate::calendar::oauth::OAuthProvider::new(tokens.access_token);
+            let discovered = provider.list_calendars().await.ok();
+            if let Some(d) = discovered {
+                let conn = db.conn.lock().unwrap();
+                let _ = repo::calendars::upsert_many(&conn, &d);
+            }
+
+            *state.0.lock().unwrap() = None;
+            let _ = app.emit_to_all("calendar-connected", ());
+            ConnectPollResult::Approved { account_email: email }
+        }
+    })
+}
+
+#[tauri::command]
+pub async fn calendar_disconnect(db: State<'_, Database>, app: AppHandle) -> AppResult<()> {
+    let src = {
+        let conn = db.conn.lock().unwrap();
+        repo::calendar_source::get(&conn)?
+    };
+
+    if let Some(s) = &src {
+        if s.kind == "oauth" {
+            if let Ok(Some(json)) = keychain::get(&s.keychain_ref) {
+                if let Ok(stored) = serde_json::from_str::<StoredOAuth>(&json) {
+                    oauth::revoke_token(&reqwest::Client::new(), &stored.refresh_token).await;
+                }
+            }
+        }
+        let _ = keychain::delete(&s.keychain_ref);
+    }
+
+    {
+        let conn = db.conn.lock().unwrap();
+        repo::calendar_source::clear(&conn)?;
+        conn.execute("DELETE FROM calendar", [])?;
+        conn.execute("DELETE FROM pending_calendar_import WHERE status = 'pending_conflict'", [])?;
+        conn.execute(
+            "UPDATE time_entry SET source = 'manual', source_event_id = NULL, source_calendar_id = NULL, source_edited_locally = 0
+             WHERE source = 'calendar'",
+            [],
+        )?;
+    }
+
+    let _ = app.emit_to_all("calendar-connected", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn calendar_list_calendars(db: State<'_, Database>) -> AppResult<Vec<CalendarRow>> {
+    let conn = db.conn.lock().unwrap();
+    repo::calendars::list(&conn)
+}
+
+#[tauri::command]
+pub fn calendar_toggle_calendar(
+    db: State<'_, Database>,
+    id: String,
+    enabled: bool,
+) -> AppResult<()> {
+    let conn = db.conn.lock().unwrap();
+    repo::calendars::set_enabled(&conn, &id, enabled)
+}
+
+#[tauri::command]
+pub async fn calendar_sync_now(app: AppHandle) -> AppResult<SyncReport> {
+    let db = app.state::<Database>();
+    sync::sync_now(&db, &app).await
+}
+
+async fn fetch_userinfo_email(client: &reqwest::Client, access_token: &str) -> AppResult<String> {
+    let resp = client
+        .get("https://openidconnect.googleapis.com/v1/userinfo")
+        .bearer_auth(access_token)
+        .send()
+        .await
+        .map_err(|e| AppError::Other(format!("userinfo: {e}")))?;
+    if !resp.status().is_success() {
+        return Err(AppError::Other(format!("userinfo: {}", resp.status())));
+    }
+    let v: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::Other(format!("userinfo body: {e}")))?;
+    Ok(v.get("email")
+        .and_then(|x| x.as_str())
+        .unwrap_or_default()
+        .to_string())
+}
+
+// ---------- Pending conflicts ----------
+
+#[tauri::command]
+pub fn pending_conflicts_list(db: State<'_, Database>) -> AppResult<Vec<PendingImport>> {
+    let conn = db.conn.lock().unwrap();
+    repo::pending_imports::list_pending(&conn)
+}
+
+#[tauri::command]
+pub fn pending_conflict_resolve(
+    db: State<'_, Database>,
+    app: AppHandle,
+    id: Uuid,
+    action: ResolutionAction,
+) -> AppResult<()> {
+    let conn = db.conn.lock().unwrap();
+    repo::pending_imports::resolve(&conn, id, action)?;
+    drop(conn);
+    let _ = app.emit_to_all("calendar-conflicts-changed", ());
+    Ok(())
+}
+
+// ---------- tauri emit helper ----------
+trait EmitToAll {
+    fn emit_to_all<S: Serialize + Clone>(&self, event: &str, payload: S) -> tauri::Result<()>;
+}
+impl EmitToAll for AppHandle {
+    fn emit_to_all<S: Serialize + Clone>(&self, event: &str, payload: S) -> tauri::Result<()> {
+        use tauri::Emitter;
+        self.emit(event, payload)
+    }
 }

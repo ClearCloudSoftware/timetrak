@@ -1,5 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Category, Project, TimeEntry, NewEntry, EntryEdit, Id, CalendarStatus } from '../types';
+import type {
+  Category, Project, TimeEntry, NewEntry, EntryEdit, Id, CalendarStatus,
+  CalendarRow, IcsInput, DeviceCodePayload, ConnectPollResult, SyncReport,
+  PendingImport, ResolutionAction,
+} from '../types';
 
 /**
  * Typed wrappers over Tauri invoke. Each follow-up plan implements
@@ -60,3 +64,19 @@ export const consumePendingNewEntry = () => invoke<boolean>('consume_pending_new
 export const calendarStatus = () => invoke<CalendarStatus>('calendar_status');
 export const setMeetingCategory = (id: Id) =>
   invoke<void>('set_meeting_category', { id });
+export const calendarConnectIcs = (sources: IcsInput[]) =>
+  invoke<void>('calendar_connect_ics', { sources });
+export const calendarConnectStart = () =>
+  invoke<DeviceCodePayload>('calendar_connect_start');
+export const calendarConnectComplete = () =>
+  invoke<ConnectPollResult>('calendar_connect_complete');
+export const calendarDisconnect = () => invoke<void>('calendar_disconnect');
+export const calendarListCalendars = () =>
+  invoke<CalendarRow[]>('calendar_list_calendars');
+export const calendarToggleCalendar = (id: string, enabled: boolean) =>
+  invoke<void>('calendar_toggle_calendar', { id, enabled });
+export const calendarSyncNow = () => invoke<SyncReport>('calendar_sync_now');
+export const pendingConflictsList = () =>
+  invoke<PendingImport[]>('pending_conflicts_list');
+export const pendingConflictResolve = (id: string, action: ResolutionAction) =>
+  invoke<void>('pending_conflict_resolve', { id, action });

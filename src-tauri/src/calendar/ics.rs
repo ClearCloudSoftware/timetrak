@@ -21,7 +21,7 @@ use crate::calendar::provider::CalendarProvider;
 use crate::calendar::types::{CalendarEvent, DiscoveredCalendar};
 use crate::error::{AppError, AppResult};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IcsCalendarConfig {
     pub id: String,
     pub display_name: String,

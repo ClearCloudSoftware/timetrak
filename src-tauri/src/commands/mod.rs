@@ -37,6 +37,15 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::windows::consume_pending_new_entry,
             timetrak_lib::commands::calendar::calendar_status,
             timetrak_lib::commands::calendar::set_meeting_category,
+            timetrak_lib::commands::calendar::calendar_connect_ics,
+            timetrak_lib::commands::calendar::calendar_connect_start,
+            timetrak_lib::commands::calendar::calendar_connect_complete,
+            timetrak_lib::commands::calendar::calendar_disconnect,
+            timetrak_lib::commands::calendar::calendar_list_calendars,
+            timetrak_lib::commands::calendar::calendar_toggle_calendar,
+            timetrak_lib::commands::calendar::calendar_sync_now,
+            timetrak_lib::commands::calendar::pending_conflicts_list,
+            timetrak_lib::commands::calendar::pending_conflict_resolve,
             // (other plans append here)
         ]
     };

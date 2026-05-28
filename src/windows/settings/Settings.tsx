@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { CategoriesPane, PreferencesPane, ProjectsPane } from './panes';
+import { CalendarPane } from './CalendarPane';
 
 const FONT = { fontFamily: 'system-ui, -apple-system, sans-serif' } as const;
 
-type Section = 'categories' | 'projects' | 'preferences';
+type Section = 'categories' | 'projects' | 'calendar' | 'preferences';
 const SECTIONS: { id: Section; label: string; glyph: string }[] = [
   { id: 'categories', label: 'Categories', glyph: '◐' },
   { id: 'projects', label: 'Projects', glyph: '▣' },
+  { id: 'calendar', label: 'Calendar', glyph: '🗓' },
   { id: 'preferences', label: 'General', glyph: '⚙' },
 ];
 
@@ -38,6 +40,7 @@ export function Settings() {
         </div>
         {section === 'categories' && <CategoriesPane />}
         {section === 'projects' && <ProjectsPane />}
+        {section === 'calendar' && <CalendarPane />}
         {section === 'preferences' && <PreferencesPane />}
       </main>
     </div>

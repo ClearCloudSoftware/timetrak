@@ -46,6 +46,57 @@ export interface CalendarStatus {
   initial_backfill_days: number;
 }
 
+export interface CalendarRow {
+  id: string;
+  display_name: string;
+  enabled: boolean;
+}
+
+export interface IcsInput {
+  display_name: string;
+  url: string;
+}
+
+export interface DeviceCodePayload {
+  user_code: string;
+  verification_url: string;
+  expires_in: number;
+  interval: number;
+}
+
+export type ConnectPollResult =
+  | { kind: 'pending' }
+  | { kind: 'slow_down' }
+  | { kind: 'approved'; account_email: string | null }
+  | { kind: 'denied' }
+  | { kind: 'expired' }
+  | { kind: 'error'; message: string };
+
+export interface SyncReport {
+  created: number;
+  updated: number;
+  deleted: number;
+  conflicts: number;
+  skipped_filter: number;
+  skipped_edited: number;
+  error: string | null;
+}
+
+export interface PendingImport {
+  id: string;
+  source_event_id: string;
+  source_calendar_id: string;
+  started_at: string;
+  ended_at: string;
+  title: string;
+  status: string;
+  detected_at: string;
+  resolved_action: string | null;
+  resolved_at: string | null;
+}
+
+export type ResolutionAction = 'kept_mine' | 'used_calendar' | 'edited';
+
 export interface EntryEdit {
   category_id: Id;
   project_id: Id | null;
