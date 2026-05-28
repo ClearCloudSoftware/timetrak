@@ -10,6 +10,10 @@ const closed = (startH: number, durMin: number): TimeEntry => ({
   started_at: new Date(2026, 4, 22, startH, 0).toISOString(),
   ended_at: new Date(2026, 4, 22, startH, durMin).toISOString(),
   note: null,
+  source: 'manual',
+  source_event_id: null,
+  source_calendar_id: null,
+  source_edited_locally: false,
 });
 
 describe('TodayFooter', () => {
@@ -30,6 +34,10 @@ describe('TodayFooter', () => {
       started_at: new Date(2026, 4, 22, 14, 0).toISOString(),
       ended_at: null,
       note: null,
+  source: 'manual',
+  source_event_id: null,
+  source_calendar_id: null,
+  source_edited_locally: false,
     };
     const nowMs = new Date(2026, 4, 22, 14, 30).getTime();
     render(<TodayFooter entries={[running]} runningEntry={running} nowMs={nowMs} />);

@@ -13,6 +13,10 @@ const closed = (id: string, hour: number, minutes = 0): TimeEntry => ({
   started_at: new Date(2026, 4, 22, hour, minutes).toISOString(),
   ended_at: new Date(2026, 4, 22, hour, minutes + 30).toISOString(),
   note: null,
+  source: 'manual',
+  source_event_id: null,
+  source_calendar_id: null,
+  source_edited_locally: false,
 });
 
 describe('TodayList', () => {

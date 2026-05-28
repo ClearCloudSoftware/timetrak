@@ -13,6 +13,10 @@ const entry = (over: Partial<TimeEntry> = {}): TimeEntry => ({
   started_at: new Date(2026, 4, 22, 11, 0).toISOString(),
   ended_at: new Date(2026, 4, 22, 12, 30).toISOString(),
   note: 'schema migration sketch',
+  source: 'manual',
+  source_event_id: null,
+  source_calendar_id: null,
+  source_edited_locally: false,
   ...over,
 });
 
