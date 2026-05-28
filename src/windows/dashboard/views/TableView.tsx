@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { durationSeconds, fmtDate, fmtDur, fmtTime, type DashViewProps } from './types';
 import { DateInput as MaskedDateInput } from '../EntryEditorSheet';
+import { matchPreset, rangeThisMonth, rangeThisWeek, rangeToday, type RangePreset } from '../format';
 
 export function TableView(p: DashViewProps) {
   const totals = useMemo(() => {
@@ -32,6 +33,16 @@ export function TableView(p: DashViewProps) {
           </div>
         ))}
         <div className="ml-auto flex items-center gap-1.5">
+          <PresetButtons
+            current={matchPreset(p.range)}
+            onPick={(preset) => {
+              const r = preset === 'today' ? rangeToday()
+                : preset === 'week' ? rangeThisWeek()
+                : rangeThisMonth();
+              p.onRangeChange(r);
+            }}
+          />
+          <span className="mx-1 h-3 w-px bg-black/15" aria-hidden />
           <DateInput value={p.range.startUtc} onChange={(v) => p.onRangeChange({ ...p.range, startUtc: v })} />
           <span className="text-[#86868b]">→</span>
           <DateInput value={p.range.endUtc} onChange={(v) => p.onRangeChange({ ...p.range, endUtc: v })} />
@@ -95,6 +106,38 @@ function Stat({ label, value, bold }: { label: string; value: string; bold?: boo
     <div className="flex items-baseline gap-1">
       <span className="text-[10px] uppercase tracking-[0.08em] text-[#86868b]">{label}</span>
       <span className={'tabular-nums ' + (bold ? 'font-medium' : '')}>{value}</span>
+    </div>
+  );
+}
+
+const PRESETS: { id: Exclude<RangePreset, 'custom'>; label: string }[] = [
+  { id: 'today', label: 'Today' },
+  { id: 'week', label: 'This week' },
+  { id: 'month', label: 'This month' },
+];
+
+function PresetButtons({
+  current, onPick,
+}: {
+  current: RangePreset;
+  onPick: (preset: Exclude<RangePreset, 'custom'>) => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-md bg-black/[0.06] p-0.5">
+      {PRESETS.map((p) => (
+        <button
+          key={p.id}
+          onClick={() => onPick(p.id)}
+          className={
+            'h-5 rounded-[5px] px-2 text-[11px] transition-colors ' +
+            (current === p.id
+              ? 'bg-white text-[#1d1d1f] shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
+              : 'text-[#86868b] hover:text-[#1d1d1f]')
+          }
+        >
+          {p.label}
+        </button>
+      ))}
     </div>
   );
 }
