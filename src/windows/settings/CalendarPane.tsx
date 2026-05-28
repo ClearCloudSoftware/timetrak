@@ -54,8 +54,12 @@ function ConnectionPanel({ status, qc }: { status: ReturnType<typeof api.calenda
   });
 
   if (status?.connected) {
+    const authError = isAuthError(status.last_sync_error);
     return (
       <Section title="Connection">
+        {authError && status.kind === 'oauth' && (
+          <AuthExpiredBanner errorMsg={status.last_sync_error!} qc={qc} />
+        )}
         <div className="rounded-md border border-black/10 bg-white p-3">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -68,7 +72,7 @@ function ConnectionPanel({ status, qc }: { status: ReturnType<typeof api.calenda
                   Last sync {new Date(status.last_sync_at).toLocaleString()}
                 </div>
               )}
-              {status.last_sync_error && (
+              {status.last_sync_error && !authError && (
                 <div className="mt-0.5 text-[11px] text-[#ff453a]">
                   Last error: {status.last_sync_error}
                 </div>
@@ -345,5 +349,69 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[#86868b]">{title}</div>
       {children}
     </section>
+  );
+}
+
+/// Heuristic: refresh token revoked / expired / consent removed. Google's
+/// canonical signal is `invalid_grant`; we also match a few looser strings
+/// in case Google changes the wording.
+function isAuthError(msg: string | null | undefined): boolean {
+  if (!msg) return false;
+  const m = msg.toLowerCase();
+  return (
+    m.includes('invalid_grant') ||
+    m.includes('refresh rejected') ||
+    m.includes('unauthorized') ||
+    m.includes('token has been expired or revoked')
+  );
+}
+
+function AuthExpiredBanner({
+  errorMsg, qc,
+}: { errorMsg: string; qc: ReturnType<typeof useQueryClient> }) {
+  const [reconnecting, setReconnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reconnect = async () => {
+    setReconnecting(true);
+    setError(null);
+    try {
+      await api.calendarDisconnect();
+      // Surface the connect form by invalidating status — UI re-renders to
+      // the not-connected view, where the user clicks "Connect Google
+      // Calendar" and goes through the device-code flow as normal.
+      qc.invalidateQueries({ queryKey: ['calendar'] });
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setReconnecting(false);
+    }
+  };
+
+  return (
+    <div className="mb-1.5 rounded-md border border-[#ff9f0a]/40 bg-[#fff8e6] p-2.5">
+      <div className="flex items-start gap-2">
+        <span className="text-[#ff9f0a]">⚠</span>
+        <div className="flex-1 text-[12px]">
+          <div className="font-medium text-[#1d1d1f]">Authorization expired</div>
+          <div className="mt-0.5 text-[11px] text-[#86868b]">
+            Google revoked or expired the refresh token (apps in OAuth
+            "testing" mode expire after 7 days). Sync will keep failing
+            until you reconnect.
+          </div>
+          <div className="mt-0.5 text-[10px] text-[#86868b]">
+            <span className="opacity-70">Details:</span> {errorMsg}
+          </div>
+        </div>
+        <button
+          className="h-7 rounded-md bg-[#0a84ff] px-3 text-[11px] font-medium text-white hover:bg-[#0a74e0] disabled:bg-[#d2d2d7]"
+          onClick={reconnect}
+          disabled={reconnecting}
+        >
+          {reconnecting ? 'Disconnecting…' : 'Reconnect'}
+        </button>
+      </div>
+      {error && <div className="mt-1 text-[11px] text-[#ff453a]">{error}</div>}
+    </div>
   );
 }
