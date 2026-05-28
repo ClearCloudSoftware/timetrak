@@ -28,8 +28,22 @@ use crate::db::Database;
 use crate::error::AppResult;
 use crate::repo;
 
-const POLL_INTERVAL_SECS: u64 = 30 * 60;
-const EXTEND_AGAIN_SECS: u64 = 15 * 60;
+const DEFAULT_POLL_MINUTES: u64 = 30;
+const DEFAULT_EXTEND_MINUTES: u64 = 15;
+
+fn read_minutes(app: &AppHandle, key: &str, default: u64) -> u64 {
+    let db = app.state::<Database>();
+    let conn = db.conn.lock().unwrap();
+    conn.query_row(
+        "SELECT value FROM app_meta WHERE key = ?1",
+        [key],
+        |r| r.get::<_, String>(0),
+    )
+    .ok()
+    .and_then(|s| s.parse::<u64>().ok())
+    .filter(|n| *n >= 1)
+    .unwrap_or(default)
+}
 
 #[derive(Default)]
 pub struct Scheduler {
@@ -53,7 +67,8 @@ impl Scheduler {
                 if let Err(e) = me.run_one_cycle(&app_for_task).await {
                     eprintln!("scheduler cycle error: {e}");
                 }
-                sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
+                let minutes = read_minutes(&app_for_task, "poll_interval_minutes", DEFAULT_POLL_MINUTES);
+                sleep(Duration::from_secs(minutes * 60)).await;
             }
         });
     }
@@ -151,12 +166,13 @@ impl Scheduler {
         }
     }
 
-    /// Extend the currently-running entry by 15 minutes and re-fire the prompt.
+    /// Extend the currently-running entry by N minutes (configurable) and re-fire the prompt.
     pub async fn schedule_extend(&self, app: AppHandle, entry_id: Uuid) {
+        let minutes = read_minutes(&app, "extend_meeting_minutes", DEFAULT_EXTEND_MINUTES);
         let key = format!("end:{entry_id}");
         let app_for_task = app.clone();
         let handle = tauri::async_runtime::spawn(async move {
-            sleep(Duration::from_secs(EXTEND_AGAIN_SECS)).await;
+            sleep(Duration::from_secs(minutes * 60)).await;
             send_stop_extend_prompt(&app_for_task, entry_id);
         });
         let mut map = self.handles.lock().await;

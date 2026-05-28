@@ -44,6 +44,8 @@ export interface CalendarStatus {
   last_sync_error: string | null;
   meeting_category_id: string | null;
   initial_backfill_days: number;
+  poll_interval_minutes: number;
+  extend_meeting_minutes: number;
 }
 
 export interface CalendarRow {

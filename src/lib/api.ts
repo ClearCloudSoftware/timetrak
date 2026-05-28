@@ -64,6 +64,12 @@ export const consumePendingNewEntry = () => invoke<boolean>('consume_pending_new
 export const calendarStatus = () => invoke<CalendarStatus>('calendar_status');
 export const setMeetingCategory = (id: Id) =>
   invoke<void>('set_meeting_category', { id });
+export const setInitialBackfillDays = (days: number) =>
+  invoke<void>('set_initial_backfill_days', { days });
+export const setPollIntervalMinutes = (minutes: number) =>
+  invoke<void>('set_poll_interval_minutes', { minutes });
+export const setExtendMeetingMinutes = (minutes: number) =>
+  invoke<void>('set_extend_meeting_minutes', { minutes });
 export const calendarConnectIcs = (sources: IcsInput[]) =>
   invoke<void>('calendar_connect_ics', { sources });
 export const calendarConnectStart = () =>

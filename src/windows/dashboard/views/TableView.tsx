@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { durationSeconds, fmtDate, fmtDur, fmtTime, type DashViewProps } from './types';
+import { DateInput as MaskedDateInput } from '../EntryEditorSheet';
 
 export function TableView(p: DashViewProps) {
   const totals = useMemo(() => {
@@ -99,17 +100,23 @@ function Stat({ label, value, bold }: { label: string; value: string; bold?: boo
 }
 
 function DateInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const local = toLocalInput(value);
+  // value is a full ISO timestamp; the shared masked input expects YYYY-MM-DD.
+  const ymd = toYmd(value);
   return (
-    <input
-      type="date"
-      className="h-5 rounded-md border border-black/10 bg-white px-1.5 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]/40"
-      value={local}
-      onChange={(e) => onChange(new Date(e.target.value).toISOString())}
+    <MaskedDateInput
+      value={ymd}
+      onChange={(next) => {
+        if (!next) return;
+        // Interpret the picked day in local time, convert back to ISO.
+        const [y, m, d] = next.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        onChange(dt.toISOString());
+      }}
+      className="h-5 text-[11px]"
     />
   );
 }
-function toLocalInput(iso: string): string {
+function toYmd(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

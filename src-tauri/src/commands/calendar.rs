@@ -26,6 +26,8 @@ pub struct CalendarStatus {
     pub last_sync_error: Option<String>,
     pub meeting_category_id: Option<String>,
     pub initial_backfill_days: i64,
+    pub poll_interval_minutes: i64,
+    pub extend_meeting_minutes: i64,
 }
 
 #[tauri::command]
@@ -39,13 +41,9 @@ pub fn calendar_status(db: State<'_, Database>) -> AppResult<CalendarStatus> {
             |r| r.get(0),
         )
         .optional()?;
-    let backfill: String = conn
-        .query_row(
-            "SELECT value FROM app_meta WHERE key = 'initial_backfill_days'",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap_or_else(|_| "14".into());
+    let backfill = read_meta_i64(&conn, "initial_backfill_days", 14);
+    let poll_interval = read_meta_i64(&conn, "poll_interval_minutes", 30);
+    let extend = read_meta_i64(&conn, "extend_meeting_minutes", 15);
     Ok(CalendarStatus {
         connected: src.is_some(),
         kind: src.as_ref().map(|s| s.kind.clone()),
@@ -53,8 +51,57 @@ pub fn calendar_status(db: State<'_, Database>) -> AppResult<CalendarStatus> {
         last_sync_at: src.as_ref().and_then(|s| s.last_sync_at.map(|t| t.to_rfc3339())),
         last_sync_error: src.as_ref().and_then(|s| s.last_sync_error.clone()),
         meeting_category_id: meeting,
-        initial_backfill_days: backfill.parse().unwrap_or(14),
+        initial_backfill_days: backfill,
+        poll_interval_minutes: poll_interval,
+        extend_meeting_minutes: extend,
     })
+}
+
+fn read_meta_i64(conn: &rusqlite::Connection, key: &str, default: i64) -> i64 {
+    conn.query_row(
+        "SELECT value FROM app_meta WHERE key = ?1",
+        [key],
+        |r| r.get::<_, String>(0),
+    )
+    .ok()
+    .and_then(|s| s.parse().ok())
+    .unwrap_or(default)
+}
+
+fn write_meta_i64(conn: &rusqlite::Connection, key: &str, value: i64) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO app_meta (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [key, &value.to_string()],
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_initial_backfill_days(db: State<'_, Database>, days: i64) -> AppResult<()> {
+    if !(1..=90).contains(&days) {
+        return Err(AppError::Invalid("days must be between 1 and 90".into()));
+    }
+    let conn = db.conn.lock().unwrap();
+    write_meta_i64(&conn, "initial_backfill_days", days)
+}
+
+#[tauri::command]
+pub fn set_poll_interval_minutes(db: State<'_, Database>, minutes: i64) -> AppResult<()> {
+    if !(5..=60).contains(&minutes) {
+        return Err(AppError::Invalid("minutes must be between 5 and 60".into()));
+    }
+    let conn = db.conn.lock().unwrap();
+    write_meta_i64(&conn, "poll_interval_minutes", minutes)
+}
+
+#[tauri::command]
+pub fn set_extend_meeting_minutes(db: State<'_, Database>, minutes: i64) -> AppResult<()> {
+    if !(5..=60).contains(&minutes) {
+        return Err(AppError::Invalid("minutes must be between 5 and 60".into()));
+    }
+    let conn = db.conn.lock().unwrap();
+    write_meta_i64(&conn, "extend_meeting_minutes", minutes)
 }
 
 #[tauri::command]

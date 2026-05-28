@@ -237,15 +237,85 @@ function DateTimeRow({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <input
-        type="date"
-        className="flex-1 rounded border border-gray-200 px-2 py-1.5 text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-        value={date}
-        onChange={(e) => onDateChange(e.target.value)}
-      />
+      <DateInput value={date} onChange={onDateChange} className="flex-1" />
       <TimeInput value={time} onChange={onTimeChange} />
     </div>
   );
+}
+
+/// Masked DD/MM/YYYY text input. Internal value is ISO YYYY-MM-DD. Avoids
+/// WKWebView's locale-driven `<input type="date">` rendering (which often
+/// shows MM/DD/YYYY on macOS regardless of `lang`).
+export function DateInput({
+  value, onChange, className,
+}: {
+  value: string;          // ISO YYYY-MM-DD
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(isoToDisplay(value));
+  useMemo(() => { setDraft(isoToDisplay(value)); }, [value]);
+
+  const commit = (raw: string) => {
+    const iso = parseDisplayToIso(raw);
+    if (iso) {
+      setDraft(isoToDisplay(iso));
+      onChange(iso);
+    } else if (!raw.trim()) {
+      setDraft('');
+      onChange('');
+    } else {
+      // Leave as-is; let save-side validation handle.
+      setDraft(raw);
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder="DD/MM/YYYY"
+      maxLength={10}
+      className={
+        'rounded border border-gray-200 px-2 py-1.5 text-center tabular-nums text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ' +
+        (className ?? '')
+      }
+      value={draft}
+      onChange={(e) => setDraft(autoFormatDate(e.target.value, draft))}
+      onBlur={(e) => commit(e.target.value)}
+    />
+  );
+}
+
+function autoFormatDate(input: string, previous: string): string {
+  const cleaned = input.replace(/[^\d/]/g, '');
+  // Allow free deletion.
+  if (cleaned.length < previous.length) return cleaned;
+  const digits = cleaned.replace(/\//g, '');
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return digits.slice(0, 2) + '/' + digits.slice(2);
+  return digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4, 8);
+}
+
+function isoToDisplay(iso: string): string {
+  // iso = YYYY-MM-DD
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function parseDisplayToIso(raw: string): string | null {
+  // Accept DD/MM/YYYY or DD/MM/YY.
+  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (!m) return null;
+  let y = parseInt(m[3], 10);
+  if (m[3].length === 2) y += 2000;
+  const mo = parseInt(m[2], 10);
+  const d = parseInt(m[1], 10);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${String(y).padStart(4, '0')}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -37,6 +37,9 @@ export function CalendarPane() {
         categories={cats.data ?? []}
         onChange={(id) => api.setMeetingCategory(id).then(() => qc.invalidateQueries({ queryKey: ['calendar', 'status'] }))}
       />
+      {status.data && (
+        <SyncSettingsPanel status={status.data} qc={qc} />
+      )}
       {status.data?.connected && (
         <>
           <CalendarsPanel calendars={calendars.data ?? []} qc={qc} />
@@ -340,6 +343,111 @@ function SyncPanel({ status }: { status: { meeting_category_id: string | null } 
         <div className="mt-1 text-[11px] text-[#ff453a]">{String(sync.error)}</div>
       )}
     </Section>
+  );
+}
+
+function SyncSettingsPanel({
+  status, qc,
+}: {
+  status: { initial_backfill_days: number; poll_interval_minutes: number; extend_meeting_minutes: number };
+  qc: ReturnType<typeof useQueryClient>;
+}) {
+  return (
+    <Section title="Sync settings">
+      <div className="space-y-1.5 rounded-md border border-black/10 bg-white p-2.5">
+        <NumberRow
+          label="Background sync"
+          suffix="min"
+          min={5}
+          max={60}
+          value={status.poll_interval_minutes}
+          help="How often TimeTrak polls the calendar in the background."
+          onSave={(n) => api.setPollIntervalMinutes(n).then(() => qc.invalidateQueries({ queryKey: ['calendar', 'status'] }))}
+        />
+        <NumberRow
+          label="Extend meeting by"
+          suffix="min"
+          min={5}
+          max={60}
+          value={status.extend_meeting_minutes}
+          help="When you click Extend on the meeting-end prompt, the timer keeps running this many more minutes."
+          onSave={(n) => api.setExtendMeetingMinutes(n).then(() => qc.invalidateQueries({ queryKey: ['calendar', 'status'] }))}
+        />
+        <NumberRow
+          label="Initial backfill"
+          suffix="days"
+          min={1}
+          max={90}
+          value={status.initial_backfill_days}
+          help="On first connect, how far back to import past events."
+          onSave={(n) => api.setInitialBackfillDays(n).then(() => qc.invalidateQueries({ queryKey: ['calendar', 'status'] }))}
+        />
+      </div>
+    </Section>
+  );
+}
+
+function NumberRow({
+  label, suffix, min, max, value, help, onSave,
+}: {
+  label: string;
+  suffix: string;
+  min: number;
+  max: number;
+  value: number;
+  help?: string;
+  onSave: (n: number) => Promise<unknown>;
+}) {
+  const [draft, setDraft] = useState<string>(String(value));
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Keep draft in sync if the upstream value changes (e.g. another window edits it).
+  useEffect(() => { setDraft(String(value)); }, [value]);
+
+  const dirty = draft !== String(value);
+  const parsed = Number(draft);
+  const valid = Number.isInteger(parsed) && parsed >= min && parsed <= max;
+
+  const commit = async () => {
+    if (!valid || !dirty) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(parsed);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <label className="flex-1 text-[12px] text-[#1d1d1f]">{label}</label>
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={1}
+          className="h-6 w-16 rounded-md border border-black/10 bg-white px-2 text-right text-[12px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]/40"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
+        />
+        <span className="w-8 text-[11px] text-[#86868b]">{suffix}</span>
+      </div>
+      {help && <div className="ml-[2px] mt-0.5 text-[11px] text-[#86868b]">{help}</div>}
+      {dirty && !valid && (
+        <div className="ml-[2px] mt-0.5 text-[11px] text-[#ff453a]">
+          Must be a whole number between {min} and {max}.
+        </div>
+      )}
+      {saving && <div className="ml-[2px] mt-0.5 text-[11px] text-[#86868b]">Saving…</div>}
+      {error && <div className="ml-[2px] mt-0.5 text-[11px] text-[#ff453a]">{error}</div>}
+    </div>
   );
 }
 
