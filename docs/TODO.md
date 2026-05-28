@@ -1,0 +1,6 @@
+- when clicking the export button i get "dialog.save not allowed. Permissions associated with this command: dialog:allow-save, dialog:default" error on the ui
+-  the popup window should automatically dissapear after the user clicks outside of it
+- after i have deleted a category i still see the category when registering a new timer
+- i have added a new category, i still don't see it when registering a new timer
+- after adding a new project, i don't see it when registering a new timer
+- if the popup screen is visibile and the user clicks on settings or dashboard, the popup screen shold disapear

@@ -1,3 +1,4 @@
+pub mod calendar;
 pub mod commands;
 pub mod csv_export;
 pub mod db;

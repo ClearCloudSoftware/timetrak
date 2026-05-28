@@ -1,6 +1,7 @@
 //! Each follow-up plan adds its command handlers to its own submodule
 //! and registers them in `register_handlers` below.
 
+pub mod calendar;
 pub mod categories;
 pub mod entries;
 pub mod export;
@@ -34,6 +35,8 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::windows::open_window,
             timetrak_lib::commands::windows::request_new_entry,
             timetrak_lib::commands::windows::consume_pending_new_entry,
+            timetrak_lib::commands::calendar::calendar_status,
+            timetrak_lib::commands::calendar::set_meeting_category,
             // (other plans append here)
         ]
     };

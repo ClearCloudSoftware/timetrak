@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Category, Project, TimeEntry, NewEntry, EntryEdit, Id } from '../types';
+import type { Category, Project, TimeEntry, NewEntry, EntryEdit, Id, CalendarStatus } from '../types';
 
 /**
  * Typed wrappers over Tauri invoke. Each follow-up plan implements
@@ -55,3 +55,8 @@ export const openWindow = (name: 'dashboard' | 'settings') =>
   invoke<void>('open_window', { name });
 export const requestNewEntry = () => invoke<void>('request_new_entry');
 export const consumePendingNewEntry = () => invoke<boolean>('consume_pending_new_entry');
+
+// --- Calendar (v0.3) ---
+export const calendarStatus = () => invoke<CalendarStatus>('calendar_status');
+export const setMeetingCategory = (id: Id) =>
+  invoke<void>('set_meeting_category', { id });
