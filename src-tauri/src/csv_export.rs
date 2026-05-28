@@ -78,6 +78,10 @@ mod tests {
             started_at: t("2026-05-22T13:00:00Z"),
             ended_at: Some(t("2026-05-22T13:30:00Z")),
             note: Some("standup".into()),
+            source: "manual".into(),
+            source_event_id: None,
+            source_calendar_id: None,
+            source_edited_locally: false,
         }];
         let csv = entries_to_csv(&entries, &[cat("Meeting")], &[], chrono_tz::UTC);
         let lines: Vec<_> = csv.lines().collect();
@@ -95,6 +99,10 @@ mod tests {
             started_at: t("2026-05-22T13:00:00Z"),
             ended_at: Some(t("2026-05-22T13:30:00Z")),
             note: Some("hello, \"world\"\nnewline".into()),
+            source: "manual".into(),
+            source_event_id: None,
+            source_calendar_id: None,
+            source_edited_locally: false,
         }];
         let csv = entries_to_csv(&entries, &[cat("Meeting")], &[], chrono_tz::UTC);
         assert!(csv.contains("\"hello, \"\"world\"\"\nnewline\""));
@@ -109,6 +117,10 @@ mod tests {
             started_at: t("2026-05-22T13:00:00Z"),
             ended_at: None,
             note: None,
+            source: "manual".into(),
+            source_event_id: None,
+            source_calendar_id: None,
+            source_edited_locally: false,
         }];
         let csv = entries_to_csv(&entries, &[cat("Meeting")], &[], chrono_tz::UTC);
         let row = csv.lines().nth(1).unwrap();

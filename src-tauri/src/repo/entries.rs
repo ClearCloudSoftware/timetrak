@@ -11,7 +11,8 @@ pub fn list_in_range(
     end: DateTime<Utc>,
 ) -> AppResult<Vec<TimeEntry>> {
     let mut stmt = conn.prepare(
-        "SELECT id, category_id, project_id, started_at, ended_at, note
+        "SELECT id, category_id, project_id, started_at, ended_at, note,
+                source, source_event_id, source_calendar_id, source_edited_locally
          FROM time_entry
          WHERE started_at < ?2
            AND (ended_at IS NULL OR ended_at > ?1)
@@ -28,7 +29,8 @@ pub fn list_in_range(
 
 pub fn find(conn: &Connection, id: Uuid) -> AppResult<TimeEntry> {
     let e = conn.query_row(
-        "SELECT id, category_id, project_id, started_at, ended_at, note
+        "SELECT id, category_id, project_id, started_at, ended_at, note,
+                source, source_event_id, source_calendar_id, source_edited_locally
          FROM time_entry WHERE id = ?1",
         [id.to_string()],
         row_to_entry,
@@ -38,7 +40,8 @@ pub fn find(conn: &Connection, id: Uuid) -> AppResult<TimeEntry> {
 
 pub fn running(conn: &Connection) -> AppResult<Option<TimeEntry>> {
     let e = conn.query_row(
-        "SELECT id, category_id, project_id, started_at, ended_at, note
+        "SELECT id, category_id, project_id, started_at, ended_at, note,
+                source, source_event_id, source_calendar_id, source_edited_locally
          FROM time_entry WHERE ended_at IS NULL",
         [],
         row_to_entry,
@@ -59,6 +62,10 @@ fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<TimeEntry> {
     let start_s: String = row.get(3)?;
     let end_s: Option<String> = row.get(4)?;
     let note: Option<String> = row.get(5)?;
+    let source: String = row.get(6)?;
+    let source_event_id: Option<String> = row.get(7)?;
+    let source_calendar_id: Option<String> = row.get(8)?;
+    let source_edited: i64 = row.get(9)?;
     Ok(TimeEntry {
         id: Uuid::parse_str(&id_s).map_err(|e| Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))?,
         category_id: Uuid::parse_str(&cat_s).map_err(|e| Error::FromSqlConversionFailure(1, Type::Text, Box::new(e)))?,
@@ -72,6 +79,10 @@ fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<TimeEntry> {
             .transpose()
             .map_err(|e| Error::FromSqlConversionFailure(4, Type::Text, Box::new(e)))?,
         note,
+        source,
+        source_event_id,
+        source_calendar_id,
+        source_edited_locally: source_edited != 0,
     })
 }
 
@@ -97,8 +108,9 @@ pub fn create(conn: &Connection, new: &NewEntry) -> AppResult<TimeEntry> {
     }
     let id = Uuid::new_v4();
     let res = conn.execute(
-        "INSERT INTO time_entry (id, category_id, project_id, started_at, ended_at, note)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO time_entry (id, category_id, project_id, started_at, ended_at, note,
+                                  source, source_event_id, source_calendar_id, source_edited_locally)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0)",
         rusqlite::params![
             id.to_string(),
             new.category_id.to_string(),
@@ -106,6 +118,9 @@ pub fn create(conn: &Connection, new: &NewEntry) -> AppResult<TimeEntry> {
             iso(new.started_at),
             new.ended_at.map(iso),
             new.note,
+            new.source,
+            new.source_event_id,
+            new.source_calendar_id,
         ],
     );
     match res {
@@ -175,6 +190,33 @@ pub fn update(conn: &Connection, id: Uuid, edit: &EntryEdit) -> AppResult<TimeEn
         return Err(AppError::NotFound(format!("entry {}", id)));
     }
     find(conn, id)
+}
+
+pub fn find_by_source(
+    conn: &Connection,
+    source_event_id: &str,
+    source_calendar_id: &str,
+) -> AppResult<Option<TimeEntry>> {
+    let e = conn.query_row(
+        "SELECT id, category_id, project_id, started_at, ended_at, note,
+                source, source_event_id, source_calendar_id, source_edited_locally
+         FROM time_entry
+         WHERE source_event_id = ?1 AND source_calendar_id = ?2",
+        [source_event_id, source_calendar_id],
+        row_to_entry,
+    ).optional()?;
+    Ok(e)
+}
+
+pub fn mark_edited_locally(conn: &Connection, id: Uuid) -> AppResult<()> {
+    let rows = conn.execute(
+        "UPDATE time_entry SET source_edited_locally = 1 WHERE id = ?1",
+        [id.to_string()],
+    )?;
+    if rows == 0 {
+        return Err(AppError::NotFound(format!("entry {}", id)));
+    }
+    Ok(())
 }
 
 pub fn delete(conn: &Connection, id: Uuid) -> AppResult<()> {
@@ -253,6 +295,9 @@ mod tests {
             started_at: t("2026-05-22T10:00:00Z"),
             ended_at: Some(t("2026-05-22T11:00:00Z")),
             note: Some("standup".into()),
+            source: "manual".into(),
+            source_event_id: None,
+            source_calendar_id: None,
         }).unwrap();
         assert_eq!(e.note.as_deref(), Some("standup"));
     }
@@ -267,6 +312,9 @@ mod tests {
             started_at: t("2026-05-22T11:00:00Z"),
             ended_at: Some(t("2026-05-22T10:00:00Z")),
             note: None,
+            source: "manual".into(),
+            source_event_id: None,
+            source_calendar_id: None,
         }).unwrap_err();
         assert!(matches!(err, AppError::Invalid(_)));
     }
@@ -282,6 +330,9 @@ mod tests {
             started_at: t("2026-05-22T10:30:00Z"),
             ended_at: Some(t("2026-05-22T11:30:00Z")),
             note: None,
+            source: "manual".into(),
+            source_event_id: None,
+            source_calendar_id: None,
         }).unwrap_err();
         assert!(matches!(err, AppError::Overlap));
     }
@@ -296,6 +347,9 @@ mod tests {
             started_at: t("2026-05-22T10:00:00Z"),
             ended_at: None,
             note: None,
+            source: "manual".into(),
+            source_event_id: None,
+            source_calendar_id: None,
         }).unwrap();
         let err = create(&conn, &NewEntry {
             category_id: meeting(),
@@ -303,6 +357,9 @@ mod tests {
             started_at: t("2026-05-22T11:00:00Z"),
             ended_at: None,
             note: None,
+            source: "manual".into(),
+            source_event_id: None,
+            source_calendar_id: None,
         }).unwrap_err();
         assert!(matches!(err, AppError::AlreadyRunning));
     }
@@ -365,5 +422,50 @@ mod tests {
         let db = fresh_db();
         let conn = db.conn.lock().unwrap();
         assert!(stop_running_now(&conn, t("2026-05-22T11:00:00Z")).unwrap().is_none());
+    }
+
+    #[test]
+    fn find_by_source_returns_match() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        let e = create(&conn, &NewEntry {
+            category_id: meeting(),
+            project_id: None,
+            started_at: t("2026-05-22T10:00:00Z"),
+            ended_at: Some(t("2026-05-22T11:00:00Z")),
+            note: None,
+            source: "calendar".into(),
+            source_event_id: Some("evt-1".into()),
+            source_calendar_id: Some("cal-a".into()),
+        }).unwrap();
+        let found = find_by_source(&conn, "evt-1", "cal-a").unwrap().unwrap();
+        assert_eq!(found.id, e.id);
+        assert_eq!(found.source, "calendar");
+    }
+
+    #[test]
+    fn find_by_source_returns_none_when_no_match() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        assert!(find_by_source(&conn, "x", "y").unwrap().is_none());
+    }
+
+    #[test]
+    fn mark_edited_locally_sets_flag() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        let e = create(&conn, &NewEntry {
+            category_id: meeting(),
+            project_id: None,
+            started_at: t("2026-05-22T10:00:00Z"),
+            ended_at: Some(t("2026-05-22T11:00:00Z")),
+            note: None,
+            source: "calendar".into(),
+            source_event_id: Some("evt-2".into()),
+            source_calendar_id: Some("cal-a".into()),
+        }).unwrap();
+        mark_edited_locally(&conn, e.id).unwrap();
+        let re = find(&conn, e.id).unwrap();
+        assert!(re.source_edited_locally);
     }
 }

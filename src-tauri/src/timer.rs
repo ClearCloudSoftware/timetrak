@@ -32,6 +32,9 @@ pub fn start(
         started_at: now,
         ended_at: None,
         note,
+        source: "manual".into(),
+        source_event_id: None,
+        source_calendar_id: None,
     })?;
     tx.commit()?;
     Ok(entry)

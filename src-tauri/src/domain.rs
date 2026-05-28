@@ -26,6 +26,14 @@ pub struct TimeEntry {
     pub started_at: DateTime<Utc>,
     pub ended_at: Option<DateTime<Utc>>,
     pub note: Option<String>,
+    #[serde(default = "default_source")]
+    pub source: String,
+    #[serde(default)]
+    pub source_event_id: Option<String>,
+    #[serde(default)]
+    pub source_calendar_id: Option<String>,
+    #[serde(default)]
+    pub source_edited_locally: bool,
 }
 
 /// Input for creating a new entry. `id` and timestamps are assigned by the repo.
@@ -36,7 +44,15 @@ pub struct NewEntry {
     pub started_at: DateTime<Utc>,
     pub ended_at: Option<DateTime<Utc>>,
     pub note: Option<String>,
+    #[serde(default = "default_source")]
+    pub source: String,
+    #[serde(default)]
+    pub source_event_id: Option<String>,
+    #[serde(default)]
+    pub source_calendar_id: Option<String>,
 }
+
+fn default_source() -> String { "manual".into() }
 
 /// Input for editing an entry. All fields replace existing values.
 #[derive(Debug, Clone, Serialize, Deserialize)]
