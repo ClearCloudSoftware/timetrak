@@ -8,3 +8,4 @@ export const EVENT_TIMER_CHANGED = 'timer-changed' as const;
 export const EVENT_ENTRIES_CHANGED = 'entries-changed' as const;
 export const EVENT_CATEGORIES_CHANGED = 'categories-changed' as const;
 export const EVENT_PROJECTS_CHANGED = 'projects-changed' as const;
+export const EVENT_IDLE_DETECTED = 'idle-detected' as const;

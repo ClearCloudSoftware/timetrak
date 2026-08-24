@@ -91,10 +91,72 @@ fn main() {
                 });
             }
 
+            // Idle detection: poll while a timer runs; prompt when the user returns.
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::Emitter;
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let mut watcher = timetrak_lib::idle::IdleWatcher::new();
+                    loop {
+                        std::thread::sleep(std::time::Duration::from_secs(15));
+                        let (running, threshold_secs) = {
+                            let db = handle.state::<Database>();
+                            let conn = db.conn.lock().unwrap();
+                            let running = timetrak_lib::timer::state(&conn).ok().and_then(|s| s.running);
+                            let mins: f64 = conn
+                                .query_row(
+                                    "SELECT value FROM app_meta WHERE key = 'idle_threshold_minutes'",
+                                    [],
+                                    |r| r.get::<_, String>(0),
+                                )
+                                .ok()
+                                .and_then(|s| s.parse().ok())
+                                .unwrap_or(10.0);
+                            (running, mins * 60.0)
+                        };
+                        let action = watcher.observe(
+                            chrono::Utc::now(),
+                            system_idle_seconds(),
+                            threshold_secs,
+                            running.is_some(),
+                        );
+                        if let timetrak_lib::idle::IdleAction::Prompt { idle_started_at } = action {
+                            if let Some(entry) = running {
+                                let _ = handle.emit(
+                                    timetrak_lib::events::IDLE_DETECTED,
+                                    serde_json::json!({
+                                        "entry_id": entry.id.to_string(),
+                                        "idle_started_at": idle_started_at.to_rfc3339(),
+                                    }),
+                                );
+                                use tauri_plugin_notification::NotificationExt;
+                                let _ = handle
+                                    .notification()
+                                    .builder()
+                                    .title("Were you away?")
+                                    .body("A timer kept running while you were idle.")
+                                    .show();
+                            }
+                        }
+                    }
+                });
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(target_os = "macos")]
+fn system_idle_seconds() -> f64 {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGEventSourceSecondsSinceLastEventType(state_id: i32, event_type: u32) -> f64;
+    }
+    // 1 = kCGEventSourceStateCombinedSessionState, u32::MAX = kCGAnyInputEventType
+    unsafe { CGEventSourceSecondsSinceLastEventType(1, u32::MAX) }
 }
 
 /// Set the menu bar title to the running timer's elapsed time ("1:42"), or

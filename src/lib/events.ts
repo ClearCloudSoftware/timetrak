@@ -5,6 +5,7 @@ import {
   EVENT_ENTRIES_CHANGED,
   EVENT_CATEGORIES_CHANGED,
   EVENT_PROJECTS_CHANGED,
+  EVENT_IDLE_DETECTED,
 } from './event-names';
 
 export interface TimerChanged {
@@ -25,3 +26,7 @@ export const onCategoriesChanged = (cb: () => void): Promise<UnlistenFn> =>
 
 export const onProjectsChanged = (cb: () => void): Promise<UnlistenFn> =>
   listen<ProjectsChanged>(EVENT_PROJECTS_CHANGED, () => cb());
+
+export interface IdleDetected { entry_id: string; idle_started_at: string }
+export const onIdleDetected = (cb: (e: IdleDetected) => void): Promise<UnlistenFn> =>
+  listen<IdleDetected>(EVENT_IDLE_DETECTED, (evt) => cb(evt.payload));

@@ -7,3 +7,4 @@ pub const TIMER_CHANGED: &str = "timer-changed";
 pub const ENTRIES_CHANGED: &str = "entries-changed";
 pub const CATEGORIES_CHANGED: &str = "categories-changed";
 pub const PROJECTS_CHANGED: &str = "projects-changed";
+pub const IDLE_DETECTED: &str = "idle-detected";
