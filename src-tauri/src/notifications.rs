@@ -4,6 +4,55 @@ use rusqlite::{Connection, OptionalExtension};
 use crate::error::{AppError, AppResult};
 use crate::reporting;
 
+pub struct NudgeConfig {
+    pub enabled: bool,
+    pub work_start: NaiveTime,
+    pub work_end: NaiveTime,
+}
+
+fn meta_str(conn: &Connection, key: &str) -> Option<String> {
+    conn.query_row("SELECT value FROM app_meta WHERE key = ?1", [key], |r| r.get(0))
+        .optional()
+        .ok()
+        .flatten()
+}
+
+pub fn get_nudge_config(conn: &Connection) -> NudgeConfig {
+    let time = |key: &str, default: &str| {
+        NaiveTime::parse_from_str(&meta_str(conn, key).unwrap_or_else(|| default.into()), "%H:%M")
+            .unwrap_or_else(|_| NaiveTime::parse_from_str(default, "%H:%M").unwrap())
+    };
+    NudgeConfig {
+        enabled: meta_str(conn, "nudge_enabled").as_deref() == Some("1"),
+        work_start: time("nudge_work_start", "09:00"),
+        work_end: time("nudge_work_end", "18:00"),
+    }
+}
+
+/// One nudge per hour, weekdays, inside [work_start, work_end), only while idle.
+pub fn should_nudge(
+    cfg: &NudgeConfig,
+    now_local: chrono::NaiveDateTime,
+    timer_running: bool,
+    last_nudge: Option<chrono::NaiveDateTime>,
+) -> bool {
+    use chrono::Datelike;
+    if !cfg.enabled || timer_running {
+        return false;
+    }
+    if matches!(now_local.weekday(), chrono::Weekday::Sat | chrono::Weekday::Sun) {
+        return false;
+    }
+    let t = now_local.time();
+    if t < cfg.work_start || t >= cfg.work_end {
+        return false;
+    }
+    match last_nudge {
+        Some(prev) => now_local - prev >= chrono::Duration::minutes(60),
+        None => true,
+    }
+}
+
 pub fn get_summary_time(conn: &Connection) -> AppResult<NaiveTime> {
     let s: Option<String> = conn.query_row(
         "SELECT value FROM app_meta WHERE key = 'daily_summary_time'",
@@ -102,6 +151,43 @@ async fn tick(app: &AppHandle) -> AppResult<()> {
         .show();
     let _ = Arc::new(()); // keep import warning quiet if unused
     Ok(())
+}
+
+#[cfg(test)]
+mod nudge_tests {
+    use super::*;
+    use chrono::{NaiveDateTime, NaiveTime};
+
+    fn cfg() -> NudgeConfig {
+        NudgeConfig {
+            enabled: true,
+            work_start: NaiveTime::from_hms_opt(9, 0, 0).unwrap(),
+            work_end: NaiveTime::from_hms_opt(18, 0, 0).unwrap(),
+        }
+    }
+    fn dt(s: &str) -> NaiveDateTime {
+        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M").unwrap()
+    }
+
+    #[test]
+    fn nudges_on_a_weekday_in_work_hours_when_idle() {
+        // 2026-08-24 is a Monday.
+        assert!(should_nudge(&cfg(), dt("2026-08-24 10:00"), false, None));
+    }
+    #[test]
+    fn never_nudges_when_disabled_running_offhours_or_weekend() {
+        let mut off = cfg(); off.enabled = false;
+        assert!(!should_nudge(&off, dt("2026-08-24 10:00"), false, None));
+        assert!(!should_nudge(&cfg(), dt("2026-08-24 10:00"), true, None));      // timer running
+        assert!(!should_nudge(&cfg(), dt("2026-08-24 08:59"), false, None));     // before start
+        assert!(!should_nudge(&cfg(), dt("2026-08-24 18:00"), false, None));     // at/after end
+        assert!(!should_nudge(&cfg(), dt("2026-08-23 10:00"), false, None));     // Sunday
+    }
+    #[test]
+    fn rate_limited_to_once_per_hour() {
+        assert!(!should_nudge(&cfg(), dt("2026-08-24 10:30"), false, Some(dt("2026-08-24 10:00"))));
+        assert!(should_nudge(&cfg(), dt("2026-08-24 11:00"), false, Some(dt("2026-08-24 10:00"))));
+    }
 }
 
 #[cfg(test)]
