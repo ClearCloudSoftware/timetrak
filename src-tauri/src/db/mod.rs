@@ -14,11 +14,23 @@ pub struct Database {
 
 const SCHEMA_SQL: &str = include_str!("schema.sql");
 
+/// Path of the staged restore file for a given live DB path.
+pub fn restore_pending_path(db_path: &Path) -> std::path::PathBuf {
+    let mut name = db_path.file_name().unwrap_or_default().to_os_string();
+    name.push(".restore-pending");
+    db_path.with_file_name(name)
+}
+
 impl Database {
     /// Open or create the DB at `path`, run migrations, enable foreign keys.
     pub fn open(path: &Path) -> AppResult<Self> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
+        }
+        // A staged restore (Settings → Restore from backup) wins over the live file.
+        let pending = restore_pending_path(path);
+        if pending.exists() {
+            std::fs::rename(&pending, path)?;
         }
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
@@ -65,6 +77,34 @@ mod tests {
 
         let goal_cnt: i64 = conn.query_row("SELECT COUNT(*) FROM weekly_goal", [], |r| r.get(0)).unwrap();
         assert_eq!(goal_cnt, 0);
+    }
+
+    #[test]
+    fn open_swaps_in_pending_restore_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("timetrak.sqlite");
+        // Seed a live DB and add a marker row.
+        {
+            let db = Database::open(&path).unwrap();
+            let conn = db.conn.lock().unwrap();
+            conn.execute("INSERT INTO app_meta (key, value) VALUES ('marker', 'live')", []).unwrap();
+        }
+        // Stage a different DB as pending restore.
+        let pending = restore_pending_path(&path);
+        {
+            let db2 = Database::open(&dir.path().join("staged.sqlite")).unwrap();
+            let conn = db2.conn.lock().unwrap();
+            conn.execute("INSERT INTO app_meta (key, value) VALUES ('marker', 'restored')", []).unwrap();
+            conn.execute("VACUUM INTO ?1", [pending.to_str().unwrap()]).unwrap();
+        }
+        // Re-open the live path: pending must win.
+        let db = Database::open(&path).unwrap();
+        let conn = db.conn.lock().unwrap();
+        let marker: String = conn
+            .query_row("SELECT value FROM app_meta WHERE key = 'marker'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(marker, "restored");
+        assert!(!pending.exists());
     }
 
     #[test]
