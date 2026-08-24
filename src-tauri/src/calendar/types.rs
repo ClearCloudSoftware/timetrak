@@ -18,6 +18,9 @@ pub struct CalendarEvent {
 pub struct DiscoveredCalendar {
     pub id: String,
     pub display_name: String,
+    /// The account's primary calendar — enabled by default on first discovery.
+    #[serde(default)]
+    pub primary: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

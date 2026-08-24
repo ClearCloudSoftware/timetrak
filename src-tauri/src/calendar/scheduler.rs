@@ -94,42 +94,26 @@ impl Scheduler {
             }
         }
 
-        // Snapshot upcoming rows in a tight scope so the Statement is dropped
-        // before any .await.
-        let rows: Vec<(Uuid, DateTime<Utc>, DateTime<Utc>)> = {
+        // Snapshot rows (in-progress + upcoming) in a tight scope so the
+        // connection lock is released before any .await.
+        let now = Utc::now();
+        let (rows, running) = {
             let db = app.state::<Database>();
             let conn = db.conn.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT id, started_at, ended_at
-                 FROM time_entry
-                 WHERE source = 'calendar'
-                   AND source_edited_locally = 0
-                   AND started_at > ?1
-                   AND ended_at IS NOT NULL
-                 ORDER BY started_at",
-            )?;
-            let now = Utc::now();
-            let raw = stmt
-                .query_map([now.to_rfc3339()], |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, String>(2)?,
-                    ))
-                })?
-                .collect::<Result<Vec<_>, _>>()?;
-            raw.into_iter()
-                .filter_map(|(id_s, start_s, end_s)| {
-                    let id = Uuid::parse_str(&id_s).ok()?;
-                    let s = DateTime::parse_from_rfc3339(&start_s).ok()?.with_timezone(&Utc);
-                    let e = DateTime::parse_from_rfc3339(&end_s).ok()?.with_timezone(&Utc);
-                    Some((id, s, e))
-                })
-                .collect()
+            let rows = repo::entries::calendar_entries_active_or_upcoming(&conn, now)?;
+            let running = repo::entries::running(&conn)?;
+            (rows, running)
         };
 
         for (id, started_at, ended_at) in rows {
-            self.schedule_start(app.clone(), id, started_at).await;
+            if started_at > now {
+                self.schedule_start(app.clone(), id, started_at).await;
+            } else if running.is_none() {
+                // Meeting already in progress (e.g. imported mid-meeting by a
+                // manual sync): switch to it immediately — but never hijack a
+                // timer that is already running.
+                self.schedule_start(app.clone(), id, now).await;
+            }
             self.schedule_end_prompt(app.clone(), id, ended_at).await;
         }
 

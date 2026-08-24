@@ -25,9 +25,9 @@ pub fn upsert_many(conn: &Connection, items: &[DiscoveredCalendar]) -> AppResult
     let tx = conn.unchecked_transaction()?;
     for it in items {
         tx.execute(
-            "INSERT INTO calendar (id, display_name, enabled) VALUES (?1, ?2, 0)
+            "INSERT INTO calendar (id, display_name, enabled) VALUES (?1, ?2, ?3)
              ON CONFLICT(id) DO UPDATE SET display_name = excluded.display_name",
-            rusqlite::params![it.id, it.display_name],
+            rusqlite::params![it.id, it.display_name, if it.primary { 1 } else { 0 }],
         )?;
     }
     tx.commit()?;
@@ -58,12 +58,30 @@ mod tests {
     use crate::test_support::*;
 
     #[test]
+    fn primary_calendar_enabled_by_default_on_first_discovery_only() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        upsert_many(&conn, &[
+            DiscoveredCalendar { id: "p".into(), display_name: "Primary".into(), primary: true },
+            DiscoveredCalendar { id: "s".into(), display_name: "Shared".into(), primary: false },
+        ]).unwrap();
+        assert_eq!(enabled_ids(&conn).unwrap(), vec!["p".to_string()]);
+
+        // User turns it off; a later re-discovery must not re-enable it.
+        set_enabled(&conn, "p", false).unwrap();
+        upsert_many(&conn, &[
+            DiscoveredCalendar { id: "p".into(), display_name: "Primary".into(), primary: true },
+        ]).unwrap();
+        assert!(enabled_ids(&conn).unwrap().is_empty());
+    }
+
+    #[test]
     fn upsert_then_toggle_then_query_enabled() {
         let db = fresh_db();
         let conn = db.conn.lock().unwrap();
         upsert_many(&conn, &[
-            DiscoveredCalendar { id: "a".into(), display_name: "Alpha".into() },
-            DiscoveredCalendar { id: "b".into(), display_name: "Beta".into() },
+            DiscoveredCalendar { id: "a".into(), display_name: "Alpha".into(), primary: false },
+            DiscoveredCalendar { id: "b".into(), display_name: "Beta".into(), primary: false },
         ]).unwrap();
         assert_eq!(list(&conn).unwrap().len(), 2);
         assert!(enabled_ids(&conn).unwrap().is_empty());
@@ -73,7 +91,7 @@ mod tests {
 
         // Upsert again with new display name; should not lose enabled state.
         upsert_many(&conn, &[
-            DiscoveredCalendar { id: "a".into(), display_name: "Alpha 2".into() },
+            DiscoveredCalendar { id: "a".into(), display_name: "Alpha 2".into(), primary: false },
         ]).unwrap();
         assert_eq!(enabled_ids(&conn).unwrap(), vec!["a".to_string()]);
     }

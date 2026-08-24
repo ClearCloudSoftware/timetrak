@@ -51,6 +51,7 @@ impl CalendarProvider for IcsProvider {
             .map(|s| DiscoveredCalendar {
                 id: s.id.clone(),
                 display_name: s.display_name.clone(),
+                primary: true, // user added this URL explicitly
             })
             .collect())
     }

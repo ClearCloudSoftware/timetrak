@@ -213,6 +213,8 @@ struct CalendarListItem {
     summary: Option<String>,
     #[serde(default, rename = "summaryOverride")]
     summary_override: Option<String>,
+    #[serde(default)]
+    primary: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -291,6 +293,7 @@ impl CalendarProvider for OAuthProvider {
             .into_iter()
             .map(|c| DiscoveredCalendar {
                 display_name: c.summary_override.or(c.summary).unwrap_or_else(|| c.id.clone()),
+                primary: c.primary,
                 id: c.id,
             })
             .collect())

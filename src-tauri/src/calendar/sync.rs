@@ -110,7 +110,9 @@ async fn sync_inner(db: &Database) -> AppResult<SyncReport> {
     };
 
     if enabled_ids.is_empty() {
-        return Ok(SyncReport::default());
+        return Err(AppError::Invalid(
+            "no calendars enabled — enable at least one in Settings → Calendar".into(),
+        ));
     }
 
     let provider = build_provider(&db, &src).await?;
@@ -344,5 +346,35 @@ impl From<StoredTokens> for StoredOAuth {
             access_expires_at: t.access_expires_at,
             account_email: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::calendar::types::CalendarSource;
+    use crate::test_support::*;
+
+    #[tokio::test]
+    async fn sync_with_no_enabled_calendars_errors_instead_of_silent_noop() {
+        let db = fresh_db();
+        {
+            let conn = db.conn.lock().unwrap();
+            crate::repo::calendar_source::set(&conn, &CalendarSource {
+                id: uuid::Uuid::new_v4(),
+                kind: "oauth".into(),
+                account_email: None,
+                keychain_ref: "test".into(),
+                connected_at: Utc::now(),
+                last_sync_at: None,
+                last_sync_error: None,
+            }).unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('meeting_category_id', ?1)",
+                [CAT_MEETING],
+            ).unwrap();
+        }
+        let err = sync_inner(&db).await.expect_err("expected error when no calendars enabled");
+        assert!(err.to_string().to_lowercase().contains("enabled"), "got: {err}");
     }
 }

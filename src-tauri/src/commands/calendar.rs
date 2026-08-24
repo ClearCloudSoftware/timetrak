@@ -367,8 +367,15 @@ pub fn calendar_toggle_calendar(
 
 #[tauri::command]
 pub async fn calendar_sync_now(app: AppHandle) -> AppResult<SyncReport> {
-    let db = app.state::<Database>();
-    sync::sync_now(&db, &app).await
+    let report = {
+        let db = app.state::<Database>();
+        sync::sync_now(&db, &app).await?
+    };
+    // Re-arm auto-switch / end-prompt wake-ups from the fresh entries, same
+    // as a scheduler cycle does.
+    let sched = app.state::<std::sync::Arc<crate::calendar::scheduler::Scheduler>>();
+    sched.reschedule_upcoming(&app).await?;
+    Ok(report)
 }
 
 async fn fetch_userinfo_email(client: &reqwest::Client, access_token: &str) -> AppResult<String> {

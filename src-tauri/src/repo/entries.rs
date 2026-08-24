@@ -469,3 +469,75 @@ mod tests {
         assert!(re.source_edited_locally);
     }
 }
+
+/// Calendar-sourced, unedited entries that are still in progress or upcoming
+/// at `now` — the set the scheduler arms auto-switch / end-prompt timers for.
+pub fn calendar_entries_active_or_upcoming(
+    conn: &Connection,
+    now: DateTime<Utc>,
+) -> AppResult<Vec<(Uuid, DateTime<Utc>, DateTime<Utc>)>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, started_at, ended_at
+         FROM time_entry
+         WHERE source = 'calendar'
+           AND source_edited_locally = 0
+           AND ended_at IS NOT NULL
+           AND ended_at > ?1
+         ORDER BY started_at",
+    )?;
+    let raw = stmt
+        .query_map([now.to_rfc3339()], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(raw
+        .into_iter()
+        .filter_map(|(id_s, start_s, end_s)| {
+            let id = Uuid::parse_str(&id_s).ok()?;
+            let s = DateTime::parse_from_rfc3339(&start_s).ok()?.with_timezone(&Utc);
+            let e = DateTime::parse_from_rfc3339(&end_s).ok()?.with_timezone(&Utc);
+            Some((id, s, e))
+        })
+        .collect())
+}
+
+#[cfg(test)]
+mod calendar_schedule_tests {
+    use super::*;
+    use crate::test_support::*;
+
+    fn insert_calendar_entry(
+        conn: &rusqlite::Connection,
+        start: &str,
+        end: &str,
+        edited: bool,
+    ) -> uuid::Uuid {
+        let id = uuid::Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO time_entry (id, category_id, project_id, started_at, ended_at, note,
+                                     source, source_event_id, source_calendar_id, source_edited_locally)
+             VALUES (?1, ?2, NULL, ?3, ?4, NULL, 'calendar', ?5, 'cal1', ?6)",
+            rusqlite::params![id.to_string(), CAT_MEETING, start, end, id.to_string(), edited as i64],
+        ).unwrap();
+        id
+    }
+
+    #[test]
+    fn calendar_entries_active_or_upcoming_includes_in_progress_meetings() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        let now = t("2026-08-24T12:00:00Z");
+        insert_calendar_entry(&conn, "2026-08-24T09:00:00Z", "2026-08-24T10:00:00Z", false); // over
+        let in_progress = insert_calendar_entry(&conn, "2026-08-24T11:30:00Z", "2026-08-24T12:30:00Z", false);
+        let upcoming = insert_calendar_entry(&conn, "2026-08-24T14:00:00Z", "2026-08-24T15:00:00Z", false);
+        insert_calendar_entry(&conn, "2026-08-24T16:00:00Z", "2026-08-24T17:00:00Z", true); // edited
+
+        let rows = calendar_entries_active_or_upcoming(&conn, now).unwrap();
+        let ids: Vec<uuid::Uuid> = rows.iter().map(|r| r.0).collect();
+        assert_eq!(ids, vec![in_progress, upcoming]);
+    }
+}
