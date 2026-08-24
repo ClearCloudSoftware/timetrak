@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { TimeEntry } from '../../../types';
+import * as api from '../../../lib/api';
 import {
   durationSeconds, fmtDate, fmtDateLong, fmtDur, fmtTime, shiftRange, type DashViewProps,
 } from './types';
-import { minutesToDate, yToMinutes, SNAP_MIN } from './timeline-math';
+import { minutesToDate, moveRange, yToMinutes, SNAP_MIN } from './timeline-math';
 
 const HOUR_H = 48;
 const GUTTER = 56; // px column for hour labels
 
 export function TimelineView(p: DashViewProps) {
+  const qc = useQueryClient();
   const days = useMemo(() => {
     const map = new Map<string, TimeEntry[]>();
     for (const e of p.entries) {
@@ -25,6 +28,14 @@ export function TimelineView(p: DashViewProps) {
   const isToday = selected === new Date().toDateString();
 
   const [draft, setDraft] = useState<{ startMin: number; endMin: number } | null>(null);
+
+  const [editDrag, setEditDrag] = useState<{
+    entry: TimeEntry; kind: 'move' | 'resize-start' | 'resize-end';
+    origStartMin: number; origEndMin: number; grabMin: number;
+    startMin: number; endMin: number;
+  } | null>(null);
+  const [dragError, setDragError] = useState<string | null>(null);
+  const movedRef = useRef(false);
 
   // Current-time indicator, minute resolution.
   const [nowMin, setNowMin] = useState(() => minutesOfDay());
@@ -76,7 +87,15 @@ export function TimelineView(p: DashViewProps) {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="relative flex min-w-0 flex-1 flex-col">
+        {dragError && (
+          <div
+            className="absolute inset-x-2 top-1 z-20 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive"
+            onClick={() => setDragError(null)}
+          >
+            {dragError}
+          </div>
+        )}
         <div className="flex items-center gap-2 border-b border-separator px-3 py-1.5">
           <div className="text-[12px] font-medium">
             {selected ? fmtDateLong(new Date(selected).toISOString()) : '—'}
@@ -158,18 +177,69 @@ export function TimelineView(p: DashViewProps) {
               </div>
             )}
 
-            {dayEntries.map((e) => {
-              const start = new Date(e.started_at);
-              const end = e.ended_at ? new Date(e.ended_at) : new Date();
-              const top = (start.getHours() + start.getMinutes() / 60) * HOUR_H;
-              const height = Math.max(18, ((end.getTime() - start.getTime()) / 1000 / 3600) * HOUR_H);
-              const cat = p.categories.find((c) => c.id === e.category_id);
-              const proj = p.projects.find((pr) => pr.id === e.project_id);
+            {dayEntries.map((entry) => {
+              const start = new Date(entry.started_at);
+              const end = entry.ended_at ? new Date(entry.ended_at) : new Date();
+              const dragging = editDrag?.entry.id === entry.id;
+              const top = dragging
+                ? (editDrag!.startMin / 60) * HOUR_H
+                : (start.getHours() + start.getMinutes() / 60) * HOUR_H;
+              const height = dragging
+                ? Math.max(18, ((editDrag!.endMin - editDrag!.startMin) / 60) * HOUR_H)
+                : Math.max(18, ((end.getTime() - start.getTime()) / 1000 / 3600) * HOUR_H);
+              const cat = p.categories.find((c) => c.id === entry.category_id);
+              const proj = p.projects.find((pr) => pr.id === entry.project_id);
               const color = cat?.color ?? '#8e8e93';
               return (
                 <button
-                  key={e.id}
-                  onClick={() => p.onEdit(e)}
+                  key={entry.id}
+                  onClick={() => {
+                    if (movedRef.current) { movedRef.current = false; return; }
+                    p.onEdit(entry);
+                  }}
+                  onPointerDown={entry.ended_at ? (e) => {
+                    if (!e.currentTarget.parentElement) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const zone = e.clientY - rect.top < 6 ? 'resize-start'
+                      : rect.bottom - e.clientY < 6 ? 'resize-end' : 'move';
+                    const container = e.currentTarget.parentElement.getBoundingClientRect();
+                    const grabMin = yToMinutes(e.clientY - container.top, HOUR_H);
+                    const s = new Date(entry.started_at); const en = new Date(entry.ended_at!);
+                    const startMin = s.getHours() * 60 + s.getMinutes();
+                    const endMin = en.getHours() * 60 + en.getMinutes();
+                    setEditDrag({ entry, kind: zone, origStartMin: startMin, origEndMin: endMin, grabMin, startMin, endMin });
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    e.stopPropagation();
+                  } : undefined}
+                  onPointerMove={entry.ended_at ? (ev) => {
+                    if (!editDrag) return;
+                    const container = ev.currentTarget.parentElement!.getBoundingClientRect();
+                    const cur = yToMinutes(ev.clientY - container.top, HOUR_H);
+                    const delta = cur - editDrag.grabMin;
+                    if (editDrag.kind === 'move') {
+                      const [s2, e2] = moveRange(editDrag.origStartMin, editDrag.origEndMin, delta);
+                      setEditDrag({ ...editDrag, startMin: s2, endMin: e2 });
+                    } else if (editDrag.kind === 'resize-start') {
+                      setEditDrag({ ...editDrag, startMin: Math.min(editDrag.origStartMin + delta, editDrag.origEndMin - SNAP_MIN) });
+                    } else {
+                      setEditDrag({ ...editDrag, endMin: Math.max(editDrag.origEndMin + delta, editDrag.origStartMin + SNAP_MIN) });
+                    }
+                  } : undefined}
+                  onPointerUp={entry.ended_at ? () => {
+                    if (!editDrag || !selected) return;
+                    const d = editDrag;
+                    setEditDrag(null);
+                    movedRef.current = d.startMin !== d.origStartMin || d.endMin !== d.origEndMin;
+                    if (!movedRef.current) return; // click → onEdit fires normally
+                    api.updateEntry(d.entry.id, {
+                      category_id: d.entry.category_id,
+                      project_id: d.entry.project_id,
+                      started_at: minutesToDate(selected, d.startMin).toISOString(),
+                      ended_at: minutesToDate(selected, d.endMin).toISOString(),
+                      note: d.entry.note,
+                    }).then(() => qc.invalidateQueries({ queryKey: ['entries'] }))
+                      .catch((err) => setDragError(String(err)));
+                  } : undefined}
                   className="absolute right-3 overflow-hidden rounded-[5px] text-left text-[11px] transition-[filter] hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   style={{
                     top,
@@ -186,7 +256,7 @@ export function TimelineView(p: DashViewProps) {
                     </div>
                     {height >= 32 && (
                       <div className="truncate text-[10px] tabular-nums leading-tight text-label-2">
-                        {fmtTime(e.started_at)} – {e.ended_at ? fmtTime(e.ended_at) : '…'} · {fmtDur(durationSeconds(e))}
+                        {fmtTime(entry.started_at)} – {entry.ended_at ? fmtTime(entry.ended_at) : '…'} · {fmtDur(durationSeconds(entry))}
                       </div>
                     )}
                   </div>
