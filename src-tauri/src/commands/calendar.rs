@@ -9,7 +9,7 @@ use crate::calendar::oauth::{self, PollOutcome};
 use crate::calendar::secret_store;
 use crate::calendar::provider::CalendarProvider;
 use crate::calendar::sync::{self, StoredOAuth, SyncReport};
-use crate::calendar::types::{CalendarRow, CalendarSource, DiscoveredCalendar, PendingImport, ResolutionAction};
+use crate::calendar::types::{CalendarRow, CalendarSource, PendingImport, ResolutionAction};
 use crate::db::Database;
 use crate::error::{AppError, AppResult};
 use crate::repo;

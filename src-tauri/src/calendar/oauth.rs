@@ -249,8 +249,6 @@ struct EventTime {
 
 #[derive(Debug, Deserialize)]
 struct Attendee {
-    #[serde(default)]
-    email: Option<String>,
     #[serde(default, rename = "responseStatus")]
     response_status: Option<String>, // accepted | declined | tentative | needsAction
     #[serde(default, rename = "self")]
@@ -465,7 +463,6 @@ mod tests {
             start: Some(EventTime { date_time: Some("2026-05-28T10:00:00Z".into()), date: None }),
             end: Some(EventTime { date_time: Some("2026-05-28T11:00:00Z".into()), date: None }),
             attendees: vec![Attendee {
-                email: Some("me@x.com".into()),
                 response_status: Some("declined".into()),
                 self_: true,
             }],

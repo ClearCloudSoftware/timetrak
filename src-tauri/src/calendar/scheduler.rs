@@ -317,14 +317,18 @@ pub async fn calendar_undo_switch(
 ) -> AppResult<()> {
     let db = app.state::<Database>();
     let conn = db.conn.lock().unwrap();
-    // Stop the meeting entry (treat its current "running" state as cancelled).
-    let _ = repo::entries::stop_running_now(&conn, Utc::now())?;
-    // Reopen the previous entry as running if provided.
-    if let Some(pid) = previous_entry_id {
-        let _ = conn.execute(
-            "UPDATE time_entry SET ended_at = NULL WHERE id = ?1",
-            [pid.to_string()],
-        );
+    // Undo only if the meeting entry is still the running one — if the user
+    // has since started something else, leave it alone.
+    let running = repo::entries::running(&conn).ok().flatten();
+    if running.is_some_and(|r| r.id == entry_id) {
+        let _ = repo::entries::stop_running_now(&conn, Utc::now())?;
+        // Reopen the previous entry as running if provided.
+        if let Some(pid) = previous_entry_id {
+            let _ = conn.execute(
+                "UPDATE time_entry SET ended_at = NULL WHERE id = ?1",
+                [pid.to_string()],
+            );
+        }
     }
     drop(conn);
     let _ = app.emit(crate::events::ENTRIES_CHANGED, ());
