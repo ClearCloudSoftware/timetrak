@@ -42,13 +42,18 @@ fn main() {
 
             TrayIconBuilder::with_id("main-tray")
                 .icon({
+                    // Embedded at compile time: a cwd-relative from_path works in
+                    // `tauri dev` (cwd = src-tauri) but panics in a bundled .app
+                    // (cwd = /), killing the app before the icon ever appears.
                     #[cfg(target_os = "macos")]
                     {
-                        tauri::image::Image::from_path("icons/tray-template.png").unwrap()
+                        tauri::image::Image::from_bytes(include_bytes!("../icons/tray-template.png"))
+                            .expect("embedded tray icon")
                     }
                     #[cfg(not(target_os = "macos"))]
                     {
-                        tauri::image::Image::from_path("icons/tray.ico").unwrap()
+                        tauri::image::Image::from_bytes(include_bytes!("../icons/tray.ico"))
+                            .expect("embedded tray icon")
                     }
                 })
                 .icon_as_template(cfg!(target_os = "macos"))
