@@ -153,6 +153,7 @@ export function TrayPopover() {
     queryKey: qk.entries(today.startUtc, today.endUtc),
     queryFn: () => api.listEntries(today.startUtc, today.endUtc),
   });
+  const combos = useQuery({ queryKey: ['recentCombos'], queryFn: api.listRecentCombos });
 
   const [mode, setMode] = useState<Mode>({ kind: 'browse' });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -231,9 +232,11 @@ export function TrayPopover() {
     track(onTimerChanged(() => {
       qc.invalidateQueries({ queryKey: qk.timerState });
       qc.invalidateQueries({ queryKey: ['entries'] });
+      qc.invalidateQueries({ queryKey: ['recentCombos'] });
     }));
     track(onEntriesChanged(() => {
       qc.invalidateQueries({ queryKey: ['entries'] });
+      qc.invalidateQueries({ queryKey: ['recentCombos'] });
     }));
     track(onCategoriesChanged(() => {
       qc.invalidateQueries({ queryKey: qk.categories });
@@ -251,6 +254,7 @@ export function TrayPopover() {
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: qk.timerState });
     qc.invalidateQueries({ queryKey: ['entries'] });
+    qc.invalidateQueries({ queryKey: ['recentCombos'] });
   };
 
   const startOrSwitchMut = useMutation({
@@ -381,8 +385,10 @@ export function TrayPopover() {
         {/* Quick-start chips — always visible above the history list */}
         <QuickStartCard
           categories={cats}
-          onStart={(categoryId, projectId) =>
-            startOrSwitchMut.mutate({ categoryId, projectId, description: null })
+          projects={projs}
+          combos={combos.data ?? []}
+          onStart={(categoryId, projectId, note) =>
+            startOrSwitchMut.mutate({ categoryId, projectId, description: note })
           }
           pending={startOrSwitchMut.isPending}
           error={startOrSwitchMut.isError ? startOrSwitchMut.error : null}

@@ -24,6 +24,7 @@ vi.mock('../../lib/api', () => ({
   listProjects: vi.fn(async () => []),
   getTimerState: vi.fn(async () => ({ running: null })),
   listEntries: vi.fn(async () => [entry]),
+  listRecentCombos: vi.fn(async () => []),
   updateEntry: vi.fn(async () => entry),
   deleteEntry: vi.fn(async () => {}),
   startTimer: vi.fn(),
@@ -50,13 +51,17 @@ vi.mock('@tauri-apps/api/window', () => ({
 import * as api from '../../lib/api';
 import { TrayPopover } from './TrayPopover';
 
-async function openEditor() {
+function renderPopover() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
       <TrayPopover />
     </QueryClientProvider>
   );
+}
+
+async function openEditor() {
+  renderPopover();
   fireEvent.click(await screen.findByText('old note'));
   return screen.findByRole('button', { name: /^save$/i });
 }
@@ -117,5 +122,18 @@ describe('TrayPopover entry click', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /sure\?/i }));
     await waitFor(() => expect(api.deleteEntry).toHaveBeenCalledWith('e1'));
+  });
+});
+
+describe('TrayPopover quick start combos', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('shows recent combos as quick-start chips', async () => {
+    const api = await import('../../lib/api');
+    vi.mocked(api.listRecentCombos).mockResolvedValue([
+      { category_id: 'c1', project_id: null, note: 'code review' },
+    ]);
+    renderPopover(); // use the file's existing render helper name
+    expect(await screen.findByText(/code review/)).toBeTruthy();
   });
 });
