@@ -14,6 +14,7 @@ const FONT = { fontFamily: 'system-ui, -apple-system, sans-serif' } as const;
 export function CategoriesPane() {
   const qc = useQueryClient();
   const cats = useQuery({ queryKey: qk.categories, queryFn: api.listCategories });
+  const goals = useQuery({ queryKey: ['goals'], queryFn: api.listGoals });
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#0a84ff');
 
@@ -28,6 +29,10 @@ export function CategoriesPane() {
   const del = useMutation({
     mutationFn: ({ id, cascade }: { id: string; cascade: boolean }) => api.deleteCategory(id, cascade),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.categories }),
+  });
+  const setGoalMut = useMutation({
+    mutationFn: ({ id, minutes }: { id: string; minutes: number | null }) => api.setGoal(id, minutes),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['goals'] }),
   });
 
   const handleDelete = async (c: Category) => {
@@ -55,9 +60,20 @@ export function CategoriesPane() {
   return (
     <div className="text-[12px]" style={FONT}>
       <div className="divide-y divide-separator rounded-md border border-separator bg-raised">
-        {(cats.data ?? []).map((c) => (
-          <CatRow key={c.id} c={c} onSave={update.mutate} onDelete={handleDelete} />
-        ))}
+        {(cats.data ?? []).map((c) => {
+          const goal = goals.data?.find((g) => g.category_id === c.id);
+          const goalHours = goal ? String(goal.target_minutes / 60) : '';
+          return (
+            <CatRow
+              key={c.id + goalHours}
+              c={c}
+              onSave={update.mutate}
+              onDelete={handleDelete}
+              goalHours={goalHours}
+              onGoal={(minutes) => setGoalMut.mutate({ id: c.id, minutes })}
+            />
+          );
+        })}
         {cats.data?.length === 0 && (
           <div className="px-3 py-4 text-center text-[11px] text-label-2">No categories.</div>
         )}
@@ -89,7 +105,13 @@ export function CategoriesPane() {
   );
 }
 
-function CatRow({ c, onSave, onDelete }: { c: Category; onSave: (c: Category) => void; onDelete: (c: Category) => void }) {
+function CatRow({ c, onSave, onDelete, goalHours, onGoal }: {
+  c: Category;
+  onSave: (c: Category) => void;
+  onDelete: (c: Category) => void;
+  goalHours: string;
+  onGoal: (minutes: number | null) => void;
+}) {
   const [name, setName] = useState(c.name);
   // macOS idiom: edits commit implicitly (blur / Enter / color pick), no Save button.
   const commit = (color?: string) => {
@@ -110,6 +132,17 @@ function CatRow({ c, onSave, onDelete }: { c: Category; onSave: (c: Category) =>
         onBlur={() => commit()}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
         className="h-5 flex-1 rounded-sm bg-transparent px-1 text-[12px] outline-none focus:bg-fill-hover"
+      />
+      <input
+        aria-label={`Weekly goal for ${c.name} (hours)`}
+        className="h-5 w-12 rounded-sm bg-transparent px-1 text-right text-[11px] tabular-nums text-label-2 outline-none focus:bg-fill-hover"
+        placeholder="h/wk"
+        defaultValue={goalHours}
+        onBlur={(e) => {
+          const h = parseFloat(e.target.value);
+          onGoal(Number.isFinite(h) && h > 0 ? Math.round(h * 60) : null);
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
       />
       <button
         aria-label={`Delete ${c.name}`}

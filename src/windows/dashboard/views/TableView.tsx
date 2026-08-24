@@ -1,10 +1,14 @@
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Pencil, Trash2 } from 'lucide-react';
+import * as api from '../../../lib/api';
 import { durationSeconds, fmtDate, fmtDur, fmtTime, type DashViewProps } from './types';
 import { DateInput as MaskedDateInput } from '../EntryEditorSheet';
 import { matchPreset, rangeThisMonth, rangeThisWeek, rangeToday, type RangePreset } from '../format';
 
 export function TableView(p: DashViewProps) {
+  const goalsQuery = useQuery({ queryKey: ['goals'], queryFn: api.listGoals });
+  const isWeek = matchPreset(p.range) === 'week';
   const totals = useMemo(() => {
     let total = 0;
     const byCat = new Map<string, number>();
@@ -26,13 +30,27 @@ export function TableView(p: DashViewProps) {
       <div className="flex items-center gap-4 border-b border-separator bg-surface-alt px-3 py-1.5 text-[11px]">
         <Stat label="Total" value={fmtDur(totals.total)} bold />
         <span className="text-separator">|</span>
-        {totals.top.map((t) => (
-          <div key={t.cat?.id} className="flex items-center gap-1">
-            <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: t.cat?.color }} />
-            <span className="text-label-2">{t.cat?.name}</span>
-            <span className="tabular-nums">{fmtDur(t.s)}</span>
-          </div>
-        ))}
+        {totals.top.map((t) => {
+          const goal = isWeek ? goalsQuery.data?.find((g) => g.category_id === t.cat?.id) : undefined;
+          return (
+            <div key={t.cat?.id} className="flex items-center gap-1">
+              <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: t.cat?.color }} />
+              <span className="text-label-2">{t.cat?.name}</span>
+              <span className="tabular-nums">{fmtDur(t.s)}</span>
+              {goal && (
+                <span className="flex items-center gap-1">
+                  <span className="text-[10px] text-label-2">/ {fmtDur(goal.target_minutes * 60)}</span>
+                  <span className="h-1 w-10 overflow-hidden rounded-full bg-fill">
+                    <span
+                      className="block h-full rounded-full bg-accent"
+                      style={{ width: `${Math.min(100, (t.s / (goal.target_minutes * 60)) * 100)}%` }}
+                    />
+                  </span>
+                </span>
+              )}
+            </div>
+          );
+        })}
         <div className="ml-auto flex items-center gap-1.5">
           <PresetButtons
             current={matchPreset(p.range)}
