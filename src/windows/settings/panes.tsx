@@ -226,7 +226,15 @@ const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
 export function PreferencesPane() {
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [theme, setThemeState] = useState<ThemePref>(getThemePref);
+  const [nudge, setNudge] = useState(false);
+  const [workStart, setWorkStart] = useState('09:00');
+  const [workEnd, setWorkEnd] = useState('18:00');
   useEffect(() => { isEnabled().then(setAutostart); }, []);
+  useEffect(() => {
+    api.getPref('nudge_enabled').then((v) => setNudge(v === '1'));
+    api.getPref('nudge_work_start').then((v) => v && setWorkStart(v));
+    api.getPref('nudge_work_end').then((v) => v && setWorkEnd(v));
+  }, []);
   const toggle = async () => {
     if (autostart) { await disable(); setAutostart(false); }
     else { await enable(); setAutostart(true); }
@@ -253,6 +261,33 @@ export function PreferencesPane() {
               {o.label}
             </button>
           ))}
+        </div>
+      </Row>
+      <Row label="Tracking reminder" hint="Weekdays, when no timer is running.">
+        <div className="flex items-center gap-2">
+          <input
+            className="h-6 w-14 rounded-md border border-separator bg-raised px-1 text-center text-[11px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            value={workStart}
+            onChange={(e) => setWorkStart(e.target.value)}
+            onBlur={() => void api.setPref('nudge_work_start', workStart)}
+            placeholder="09:00"
+          />
+          <span className="text-[11px] text-label-2">–</span>
+          <input
+            className="h-6 w-14 rounded-md border border-separator bg-raised px-1 text-center text-[11px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            value={workEnd}
+            onChange={(e) => setWorkEnd(e.target.value)}
+            onBlur={() => void api.setPref('nudge_work_end', workEnd)}
+            placeholder="18:00"
+          />
+          <Switch
+            checked={nudge}
+            onChange={() => {
+              const next = !nudge;
+              setNudge(next);
+              void api.setPref('nudge_enabled', next ? '1' : '0');
+            }}
+          />
         </div>
       </Row>
       <Row label="Launch at login" hint="Start TimeTrak when you log into your Mac or PC.">
