@@ -5,6 +5,7 @@ pub mod db;
 pub mod domain;
 pub mod error;
 pub mod events;
+pub mod idle;
 pub mod notifications;
 pub mod repo;
 pub mod reporting;
