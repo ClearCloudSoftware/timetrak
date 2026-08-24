@@ -18,3 +18,17 @@ export function moveRange(startMin: number, endMin: number, deltaMin: number): [
   s = Math.max(0, Math.min(24 * 60 - dur, s));
   return [s, s + dur];
 }
+
+export function resizeRange(
+  startMin: number,
+  endMin: number,
+  deltaMin: number,
+  edge: 'start' | 'end',
+): [number, number] {
+  if (edge === 'start') {
+    const s = Math.max(0, Math.min(startMin + deltaMin, endMin - SNAP_MIN));
+    return [s, endMin];
+  }
+  const e = Math.min(24 * 60, Math.max(endMin + deltaMin, startMin + SNAP_MIN));
+  return [startMin, e];
+}

@@ -6,7 +6,9 @@ import * as api from '../../../lib/api';
 import {
   durationSeconds, fmtDate, fmtDateLong, fmtDur, fmtTime, shiftRange, type DashViewProps,
 } from './types';
-import { minutesToDate, moveRange, yToMinutes, SNAP_MIN } from './timeline-math';
+import {
+  minutesToDate, moveRange, resizeRange, yToMinutes, SNAP_MIN,
+} from './timeline-math';
 
 const HOUR_H = 48;
 const GUTTER = 56; // px column for hour labels
@@ -190,6 +192,11 @@ export function TimelineView(p: DashViewProps) {
               const cat = p.categories.find((c) => c.id === entry.category_id);
               const proj = p.projects.find((pr) => pr.id === entry.project_id);
               const color = cat?.color ?? '#8e8e93';
+              // Drag/resize needs same-day, closed entries: a still-running block has no
+              // ended_at, and a cross-midnight block's getHours()*60+getMinutes() pair
+              // doesn't represent a real same-day range — both stay click-to-edit only.
+              const draggable = !!entry.ended_at
+                && new Date(entry.started_at).toDateString() === new Date(entry.ended_at).toDateString();
               return (
                 <button
                   key={entry.id}
@@ -197,7 +204,8 @@ export function TimelineView(p: DashViewProps) {
                     if (movedRef.current) { movedRef.current = false; return; }
                     p.onEdit(entry);
                   }}
-                  onPointerDown={entry.ended_at ? (e) => {
+                  onPointerDown={draggable ? (e) => {
+                    movedRef.current = false; // clear any stale flag from an interrupted prior drag
                     if (!e.currentTarget.parentElement) return;
                     const rect = e.currentTarget.getBoundingClientRect();
                     const zone = e.clientY - rect.top < 6 ? 'resize-start'
@@ -211,7 +219,7 @@ export function TimelineView(p: DashViewProps) {
                     e.currentTarget.setPointerCapture(e.pointerId);
                     e.stopPropagation();
                   } : undefined}
-                  onPointerMove={entry.ended_at ? (ev) => {
+                  onPointerMove={draggable ? (ev) => {
                     if (!editDrag) return;
                     const container = ev.currentTarget.parentElement!.getBoundingClientRect();
                     const cur = yToMinutes(ev.clientY - container.top, HOUR_H);
@@ -220,12 +228,14 @@ export function TimelineView(p: DashViewProps) {
                       const [s2, e2] = moveRange(editDrag.origStartMin, editDrag.origEndMin, delta);
                       setEditDrag({ ...editDrag, startMin: s2, endMin: e2 });
                     } else if (editDrag.kind === 'resize-start') {
-                      setEditDrag({ ...editDrag, startMin: Math.min(editDrag.origStartMin + delta, editDrag.origEndMin - SNAP_MIN) });
+                      const [s2] = resizeRange(editDrag.origStartMin, editDrag.origEndMin, delta, 'start');
+                      setEditDrag({ ...editDrag, startMin: s2 });
                     } else {
-                      setEditDrag({ ...editDrag, endMin: Math.max(editDrag.origEndMin + delta, editDrag.origStartMin + SNAP_MIN) });
+                      const [, e2] = resizeRange(editDrag.origStartMin, editDrag.origEndMin, delta, 'end');
+                      setEditDrag({ ...editDrag, endMin: e2 });
                     }
                   } : undefined}
-                  onPointerUp={entry.ended_at ? () => {
+                  onPointerUp={draggable ? () => {
                     if (!editDrag || !selected) return;
                     const d = editDrag;
                     setEditDrag(null);

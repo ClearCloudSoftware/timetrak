@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { yToMinutes, minutesToDate, moveRange, SNAP_MIN } from './timeline-math';
+import {
+  yToMinutes, minutesToDate, moveRange, resizeRange, SNAP_MIN,
+} from './timeline-math';
 
 describe('timeline math', () => {
   it('converts y to snapped minutes', () => {
@@ -24,5 +26,14 @@ describe('timeline math', () => {
     expect(moveRange(60, 120, 30)).toEqual([90, 150]);
     expect(moveRange(60, 120, -90)).toEqual([0, 60]);       // clamp at 0
     expect(moveRange(1380, 1440, 60)).toEqual([1380, 1440]); // clamp at end
+  });
+
+  it('resizes an edge, clamping to the day and the min-duration floor', () => {
+    expect(resizeRange(60, 120, 15, 'start')).toEqual([75, 120]);
+    expect(resizeRange(60, 120, 15, 'end')).toEqual([60, 135]);
+    expect(resizeRange(5, 60, -20, 'start')).toEqual([0, 60]);       // clamp at 0
+    expect(resizeRange(1380, 1435, 20, 'end')).toEqual([1380, 1440]); // clamp at 1440
+    expect(resizeRange(60, 120, 100, 'start')).toEqual([115, 120]);  // min-duration floor
+    expect(resizeRange(60, 120, -100, 'end')).toEqual([60, 65]);     // min-duration floor
   });
 });
