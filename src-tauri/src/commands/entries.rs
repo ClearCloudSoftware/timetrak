@@ -57,3 +57,10 @@ pub fn delete_entry(
     let _ = app.emit(crate::events::ENTRIES_CHANGED, ());
     Ok(())
 }
+
+#[tauri::command]
+pub fn list_recent_combos(db: State<'_, Database>) -> AppResult<Vec<repo::entries::RecentCombo>> {
+    let conn = db.conn.lock().unwrap();
+    let since = Utc::now() - chrono::Duration::days(14);
+    repo::entries::recent_combos(&conn, since, 6)
+}

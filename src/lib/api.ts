@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   Category, Project, TimeEntry, NewEntry, EntryEdit, Id, CalendarStatus,
   CalendarRow, IcsInput, DeviceCodePayload, ConnectPollResult, SyncReport,
-  PendingImport, ResolutionAction,
+  PendingImport, ResolutionAction, RecentCombo,
 } from '../types';
 
 /**
@@ -38,6 +38,7 @@ export const updateEntry = (id: Id, edit: EntryEdit) =>
   invoke<TimeEntry>('update_entry', { id, edit });
 export const deleteEntry = (id: Id) =>
   invoke<void>('delete_entry', { id });
+export const listRecentCombos = () => invoke<RecentCombo[]>('list_recent_combos');
 
 // --- Timer (plan 02) ---
 export interface TimerState {

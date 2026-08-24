@@ -36,6 +36,12 @@ export interface NewEntry {
   source_calendar_id?: string | null;
 }
 
+export interface RecentCombo {
+  category_id: Id;
+  project_id: Id | null;
+  note: string | null;
+}
+
 export interface CalendarStatus {
   connected: boolean;
   kind: 'oauth' | 'ics' | null;

@@ -23,6 +23,7 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::entries::create_entry,
             timetrak_lib::commands::entries::update_entry,
             timetrak_lib::commands::entries::delete_entry,
+            timetrak_lib::commands::entries::list_recent_combos,
             timetrak_lib::commands::export::export_csv,
             timetrak_lib::commands::categories::list_categories,
             timetrak_lib::commands::categories::create_category,
