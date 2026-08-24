@@ -541,3 +541,84 @@ mod calendar_schedule_tests {
         assert_eq!(ids, vec![in_progress, upcoming]);
     }
 }
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RecentCombo {
+    pub category_id: Uuid,
+    pub project_id: Option<Uuid>,
+    pub note: Option<String>,
+}
+
+/// Distinct (category, project, note) combinations used since `since`,
+/// most recently used first. Feeds the tray's Quick Start chips.
+pub fn recent_combos(conn: &Connection, since: DateTime<Utc>, limit: u32) -> AppResult<Vec<RecentCombo>> {
+    let mut stmt = conn.prepare(
+        "SELECT category_id, project_id, note, MAX(started_at) AS last_used
+         FROM time_entry
+         WHERE started_at >= ?1
+         GROUP BY category_id, COALESCE(project_id, ''), COALESCE(note, '')
+         ORDER BY last_used DESC
+         LIMIT ?2",
+    )?;
+    let rows = stmt.query_map(rusqlite::params![since.to_rfc3339(), limit], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, Option<String>>(1)?,
+            r.get::<_, Option<String>>(2)?,
+        ))
+    })?;
+    let mut out = Vec::new();
+    for r in rows {
+        let (cat, proj, note) = r?;
+        let Ok(category_id) = Uuid::parse_str(&cat) else { continue };
+        out.push(RecentCombo {
+            category_id,
+            project_id: proj.and_then(|p| Uuid::parse_str(&p).ok()),
+            note,
+        });
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod recent_combo_tests {
+    use super::*;
+    use crate::test_support::*;
+
+    fn insert_with_note(conn: &rusqlite::Connection, cat: uuid::Uuid, start: &str, end: &str, note: Option<&str>) {
+        conn.execute(
+            "INSERT INTO time_entry (id, category_id, project_id, started_at, ended_at, note)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(), cat.to_string(), start, end, note],
+        ).unwrap();
+    }
+
+    #[test]
+    fn recent_combos_dedupes_and_orders_by_recency() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        // Same combo twice (older + newer) must appear once, ranked by newest use.
+        insert_with_note(&conn, coding(), "2026-08-20T09:00:00Z", "2026-08-20T10:00:00Z", Some("review"));
+        insert_with_note(&conn, coding(), "2026-08-22T09:00:00Z", "2026-08-22T10:00:00Z", Some("review"));
+        insert_with_note(&conn, meeting(), "2026-08-21T09:00:00Z", "2026-08-21T10:00:00Z", None);
+
+        let combos = recent_combos(&conn, t("2026-08-10T00:00:00Z"), 6).unwrap();
+        assert_eq!(combos.len(), 2);
+        assert_eq!(combos[0].category_id, coding());
+        assert_eq!(combos[0].note.as_deref(), Some("review"));
+        assert_eq!(combos[1].category_id, meeting());
+    }
+
+    #[test]
+    fn recent_combos_respects_since_and_limit() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        insert_with_note(&conn, coding(), "2026-01-01T09:00:00Z", "2026-01-01T10:00:00Z", None); // too old
+        insert_with_note(&conn, coding(), "2026-08-22T09:00:00Z", "2026-08-22T10:00:00Z", Some("a"));
+        insert_with_note(&conn, coding(), "2026-08-23T09:00:00Z", "2026-08-23T10:00:00Z", Some("b"));
+
+        let combos = recent_combos(&conn, t("2026-08-10T00:00:00Z"), 1).unwrap();
+        assert_eq!(combos.len(), 1);
+        assert_eq!(combos[0].note.as_deref(), Some("b"));
+    }
+}
