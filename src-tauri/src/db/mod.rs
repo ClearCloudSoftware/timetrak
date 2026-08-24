@@ -61,7 +61,10 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(version, "3");
+        assert_eq!(version, "4");
+
+        let goal_cnt: i64 = conn.query_row("SELECT COUNT(*) FROM weekly_goal", [], |r| r.get(0)).unwrap();
+        assert_eq!(goal_cnt, 0);
     }
 
     #[test]
