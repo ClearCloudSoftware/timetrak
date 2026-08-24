@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TriangleAlert, ChevronDown, ChevronRight } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
 import * as api from '../../lib/api';
@@ -26,17 +27,19 @@ export function ConflictsPanel() {
   if (list.length === 0) return null;
 
   return (
-    <div className="border-b border-[#ff9f0a]/30 bg-[#fff8e6]" style={FONT}>
+    <div className="border-b border-warning/30 bg-warning/10" style={FONT}>
       <button
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px]"
         onClick={() => setOpen(!open)}
       >
-        <span className="text-[#ff9f0a]">⚠</span>
+        <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
         <span className="font-medium">{list.length} calendar {list.length === 1 ? 'conflict' : 'conflicts'}</span>
-        <span className="ml-auto text-[10px] text-[#86868b]">{open ? '▾' : '▸'}</span>
+        <span className="ml-auto text-label-2">
+          {open ? <ChevronDown className="h-3 w-3" aria-hidden /> : <ChevronRight className="h-3 w-3" aria-hidden />}
+        </span>
       </button>
       {open && (
-        <div className="border-t border-[#ff9f0a]/20 bg-white">
+        <div className="border-t border-warning/20 bg-raised">
           {list.map((c) => <ConflictRow key={c.id} conflict={c} qc={qc} />)}
         </div>
       )}
@@ -55,20 +58,20 @@ function ConflictRow({ conflict, qc }: { conflict: PendingImport; qc: ReturnType
   });
 
   return (
-    <div className="flex items-center gap-2 border-b border-black/5 px-3 py-1.5 text-[12px] last:border-b-0">
+    <div className="flex items-center gap-2 border-b border-separator px-3 py-1.5 text-[12px] last:border-b-0">
       <div className="flex-1">
-        <div className="truncate font-medium text-[#1d1d1f]">{conflict.title}</div>
-        <div className="text-[11px] text-[#86868b]">
+        <div className="truncate font-medium text-label">{conflict.title}</div>
+        <div className="text-[11px] text-label-2">
           {new Date(conflict.started_at).toLocaleString()} – {new Date(conflict.ended_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </div>
       <button
-        className="h-6 rounded-md border border-black/10 px-2 text-[11px] hover:bg-black/[0.04] disabled:opacity-50"
+        className="h-6 rounded-md border border-separator px-2 text-[11px] hover:bg-fill-hover disabled:opacity-50"
         onClick={() => resolve.mutate({ action: 'kept_mine' })}
         disabled={resolve.isPending}
       >Keep mine</button>
       <button
-        className="h-6 rounded-md bg-[#0a84ff] px-2 text-[11px] font-medium text-white hover:bg-[#0a74e0] disabled:bg-[#d2d2d7]"
+        className="h-6 rounded-md bg-accent px-2 text-[11px] font-medium text-white hover:bg-accent-hover disabled:bg-label-2/30"
         onClick={() => resolve.mutate({ action: 'used_calendar' })}
         disabled={resolve.isPending}
       >Use calendar</button>

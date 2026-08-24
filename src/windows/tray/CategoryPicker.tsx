@@ -16,9 +16,9 @@ interface Props {
 }
 
 const LABEL =
-  'block text-[10px] font-medium uppercase tracking-[0.08em] text-[#86868b]';
+  'block text-[10px] font-medium uppercase tracking-[0.08em] text-label-2';
 const FIELD =
-  'mt-0.5 w-full rounded-md bg-white px-2 py-1 text-[12px] text-[#1d1d1f] ring-1 ring-inset ring-black/10 outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]';
+  'mt-0.5 w-full rounded-md bg-raised px-2 py-1 text-[12px] text-label ring-1 ring-inset ring-separator outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
 export function CategoryPicker({
   categories,
@@ -64,7 +64,7 @@ export function CategoryPicker({
           value={note}
           onChange={(e) => onChange({ categoryId, projectId, note: e.target.value })}
         />
-        <div className="mt-0.5 text-right text-[10px] tabular-nums text-[#86868b]">
+        <div className="mt-0.5 text-right text-[10px] tabular-nums text-label-2">
           {note.length} / 250
         </div>
       </div>

@@ -32,27 +32,27 @@ export function HeatmapView(p: DashViewProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-black/5 px-3 py-1.5">
-        <div className="text-[10px] text-[#86868b]">
+      <div className="flex items-center gap-3 border-b border-separator px-3 py-1.5">
+        <div className="text-[10px] text-label-2">
           {fmtDate(p.range.startUtc)} → {fmtDate(p.range.endUtc)}
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           <button
-            className="h-5 rounded-md border border-black/10 px-2 text-[11px] hover:bg-black/[0.04]"
+            className="h-5 rounded-md border border-separator px-2 text-[11px] hover:bg-fill-hover"
             onClick={() => p.onRangeChange(shiftRange(p.range, -7))}
           >‹</button>
           <button
-            className="h-5 rounded-md border border-black/10 px-2 text-[11px] hover:bg-black/[0.04]"
+            className="h-5 rounded-md border border-separator px-2 text-[11px] hover:bg-fill-hover"
             onClick={() => p.onRangeChange(shiftRange(p.range, +7))}
           >›</button>
         </div>
       </div>
 
-      <div className="border-b border-black/5 px-3 py-2">
+      <div className="border-b border-separator px-3 py-2">
         <div className="grid grid-cols-[44px_1fr] gap-1">
           <div />
           <div
-            className="grid gap-[2px] text-[9px] text-[#86868b]"
+            className="grid gap-[2px] text-[9px] text-label-2"
             style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}
           >
             {Array.from({ length: 24 }, (_, h) => (
@@ -80,8 +80,8 @@ export function HeatmapView(p: DashViewProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 border-b border-black/5 px-3 py-1.5 text-[11px]">
-        <span className="mr-1 text-[10px] uppercase tracking-[0.08em] text-[#86868b]">Filter</span>
+      <div className="flex items-center gap-1.5 border-b border-separator px-3 py-1.5 text-[11px]">
+        <span className="mr-1 text-[10px] uppercase tracking-[0.08em] text-label-2">Filter</span>
         <Chip active={filterCat === null} onClick={() => setFilterCat(null)} label="All" />
         {p.categories.map((c) => {
           const total = p.entries.filter((e) => e.category_id === c.id).reduce((s, e) => s + durationSeconds(e), 0);
@@ -105,7 +105,7 @@ export function HeatmapView(p: DashViewProps) {
 
       <div className="flex-1 overflow-auto">
         {filtered.length === 0 && (
-          <div className="py-10 text-center text-[12px] text-[#86868b]">Nothing here.</div>
+          <div className="py-10 text-center text-[12px] text-label-2">Nothing here.</div>
         )}
         {filtered.map((e) => {
           const cat = p.categories.find((c) => c.id === e.category_id);
@@ -113,18 +113,18 @@ export function HeatmapView(p: DashViewProps) {
           return (
             <div
               key={e.id}
-              className="group flex h-7 items-center gap-2 border-b border-black/5 px-3 text-[12px] hover:bg-[#f5f5f7]"
+              className="group flex h-7 items-center gap-2 border-b border-separator px-3 text-[12px] hover:bg-fill-hover"
               style={{ borderLeft: `3px solid ${cat?.color ?? 'transparent'}` }}
             >
-              <span className="w-16 text-[#86868b]">{fmtDate(e.started_at)}</span>
+              <span className="w-16 text-label-2">{fmtDate(e.started_at)}</span>
               <span className="w-24 tabular-nums">{fmtTime(e.started_at)} – {e.ended_at ? fmtTime(e.ended_at) : '…'}</span>
               <span className="w-12 tabular-nums">{fmtDur(durationSeconds(e))}</span>
               <span className="w-20 truncate">{cat?.name}</span>
-              <span className="w-24 truncate text-[#86868b]">{proj?.name ?? ''}</span>
-              <span className="flex-1 truncate text-[#86868b]">{e.note ?? ''}</span>
+              <span className="w-24 truncate text-label-2">{proj?.name ?? ''}</span>
+              <span className="flex-1 truncate text-label-2">{e.note ?? ''}</span>
               <span className="opacity-0 transition-opacity group-hover:opacity-100">
-                <button className="text-[#0a84ff] hover:underline" onClick={() => p.onEdit(e)}>Edit</button>
-                <button className="ml-2 text-[#ff453a] hover:underline" onClick={() => p.onDelete(e)}>Delete</button>
+                <button className="text-accent hover:underline" onClick={() => p.onEdit(e)}>Edit</button>
+                <button className="ml-2 text-destructive hover:underline" onClick={() => p.onDelete(e)}>Delete</button>
               </span>
             </div>
           );
@@ -141,8 +141,8 @@ function Chip({ active, onClick, label }: { active: boolean; onClick: () => void
       className={
         'h-5 rounded-full px-2 text-[11px] transition-colors ' +
         (active
-          ? 'bg-[#0a84ff] text-white'
-          : 'border border-black/10 bg-white text-[#1d1d1f] hover:bg-black/[0.04]')
+          ? 'bg-accent text-white'
+          : 'border border-separator bg-raised text-label hover:bg-fill-hover')
       }
     >
       {label}
@@ -153,7 +153,7 @@ function Chip({ active, onClick, label }: { active: boolean; onClick: () => void
 function RowFragment({ dayLabel, children }: { dayLabel: string; children: React.ReactNode }) {
   return (
     <>
-      <div className="text-[10px] text-[#86868b]">{dayLabel}</div>
+      <div className="text-[10px] text-label-2">{dayLabel}</div>
       <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
         {children}
       </div>

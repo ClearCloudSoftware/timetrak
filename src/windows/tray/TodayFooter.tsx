@@ -29,7 +29,7 @@ export function TodayFooter({ entries, runningEntry, nowMs }: Props) {
   }
 
   return (
-    <div className="border-t border-black/5 px-3 py-1.5 text-[11px] text-[#86868b] tabular-nums">
+    <div className="border-t border-separator px-3 py-1.5 text-[11px] text-label-2 tabular-nums">
       Today: {formatDuration(totalSeconds)}
     </div>
   );

@@ -31,6 +31,9 @@ ical = "0.11"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 rrule = "0.13"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+window-vibrancy = "0.6"
+
 [dev-dependencies]
 tempfile = "3"
 

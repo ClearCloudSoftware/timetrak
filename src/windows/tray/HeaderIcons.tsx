@@ -10,7 +10,7 @@ export function HeaderIcons({ onError }: Props) {
   const openSettings = () => api.openWindow('settings').catch((e) => onError?.(String(e)));
 
   const btn =
-    'inline-flex h-5 w-5 items-center justify-center rounded text-[#86868b] transition-colors hover:text-[#1d1d1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]';
+    'inline-flex h-5 w-5 items-center justify-center rounded text-label-2 transition-colors hover:text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
   return (
     <div className="flex items-center gap-0.5">

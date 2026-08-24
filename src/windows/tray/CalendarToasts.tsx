@@ -75,10 +75,10 @@ export function CalendarToasts() {
 function Toast({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
   if (toast.kind === 'auto-switched') {
     return (
-      <div className="flex items-center gap-2 rounded-md bg-[#0a84ff]/[0.08] px-2 py-1.5 text-[11px]">
-        <span className="flex-1 truncate text-[#1d1d1f]">Auto-started meeting timer.</span>
+      <div className="flex items-center gap-2 rounded-md bg-accent/[0.08] px-2 py-1.5 text-[11px]">
+        <span className="flex-1 truncate text-label">Auto-started meeting timer.</span>
         <button
-          className="text-[#0a84ff] hover:underline"
+          className="text-accent hover:underline"
           onClick={async () => {
             try {
               await api.calendarUndoSwitch(toast.entryId, toast.previousEntryId);
@@ -91,19 +91,19 @@ function Toast({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
     );
   }
   return (
-    <div className="rounded-md bg-[#ff9f0a]/[0.1] px-2 py-1.5 text-[11px]">
-      <div className="text-[#1d1d1f]">
+    <div className="rounded-md bg-warning/[0.1] px-2 py-1.5 text-[11px]">
+      <div className="text-label">
         {toast.title ?? 'Meeting'} ended.
       </div>
       <div className="mt-1 flex gap-2">
         <button
-          className="h-6 flex-1 rounded-md bg-[#0a84ff] text-[11px] font-medium text-white hover:bg-[#0a74e0]"
+          className="h-6 flex-1 rounded-md bg-accent text-[11px] font-medium text-white hover:bg-accent-hover"
           onClick={async () => {
             try { await api.calendarExtend(toast.entryId); } finally { onDismiss(); }
           }}
         >Extend 15 min</button>
         <button
-          className="h-6 flex-1 rounded-md border border-black/10 text-[11px] hover:bg-black/[0.04]"
+          className="h-6 flex-1 rounded-md border border-separator text-[11px] hover:bg-fill-hover"
           onClick={async () => {
             try { await api.calendarStopMeeting(toast.entryId); } finally { onDismiss(); }
           }}

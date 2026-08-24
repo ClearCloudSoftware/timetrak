@@ -9,5 +9,5 @@ export default function App() {
   if (w === 'tray') return <TrayPopover />;
   if (w === 'dashboard') return <Dashboard />;
   if (w === 'settings') return <Settings />;
-  return <div className="p-4 text-sm text-gray-500">Unknown window: {w}</div>;
+  return <div className="p-4 text-sm text-label-2">Unknown window: {w}</div>;
 }

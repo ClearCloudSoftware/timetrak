@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { Category, EntryEdit, NewEntry, Project, TimeEntry } from '../../types';
@@ -48,14 +48,24 @@ export function EntryEditorSheet({ mode, categories, projects, onClose, onSaved 
 
   const title = mode.kind === 'edit' ? 'Edit entry' : 'Add entry';
 
+  // Esc dismisses, like a native sheet.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30">
-      <div className="w-[420px] rounded-md bg-white p-4 shadow-lg">
-        <div className="mb-3 text-base font-semibold text-gray-900">{title}</div>
-        <div className="space-y-3 text-sm">
+    <div
+      className="fixed inset-0 z-10 flex items-start justify-center bg-black/25 pt-12"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="sheet-in w-[440px] rounded-xl bg-raised p-4 shadow-2xl ring-1 ring-separator">
+        <div className="mb-3 text-[13px] font-semibold text-label">{title}</div>
+        <div className="grid grid-cols-[88px_1fr] items-start gap-x-3 gap-y-2.5 text-[12px]">
           <Field label="Category">
             <select
-              className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="w-full rounded border border-separator bg-raised px-2 py-1.5 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
             >
@@ -67,7 +77,7 @@ export function EntryEditorSheet({ mode, categories, projects, onClose, onSaved 
           </Field>
           <Field label="Project">
             <select
-              className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="w-full rounded border border-separator bg-raised px-2 py-1.5 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               value={projectId ?? ''}
               onChange={(e) => setProjectId(e.target.value || null)}
             >
@@ -85,36 +95,37 @@ export function EntryEditorSheet({ mode, categories, projects, onClose, onSaved 
               onTimeChange={setStartTime}
             />
           </Field>
-          <Field label="Ended (blank = still running)">
+          <Field label="Ended">
             <DateTimeRow
               date={endDate}
               time={endTime}
               onDateChange={setEndDate}
               onTimeChange={setEndTime}
             />
+            <div className="mt-1 text-[10px] text-label-2">Leave blank if still running.</div>
           </Field>
           <Field label="Description">
             <input
-              className="w-full rounded border border-gray-200 px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="w-full rounded border border-separator px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-accent"
               maxLength={250}
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
-            <div className="mt-0.5 text-right text-xs text-gray-400">{note.length} / 250</div>
+            <div className="mt-0.5 text-right text-xs text-label-2">{note.length} / 250</div>
           </Field>
         </div>
         {save.isError && (
-          <div className="mt-2 text-xs text-red-600">{String(save.error)}</div>
+          <div className="mt-2 text-xs text-destructive">{String(save.error)}</div>
         )}
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
-            className="cursor-pointer px-3 py-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
+            className="cursor-pointer rounded-md px-3 py-1.5 text-[12px] text-label-2 transition-colors hover:text-label"
             onClick={onClose}
           >
             Cancel
           </button>
           <button
-            className="cursor-pointer rounded bg-blue-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+            className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:bg-label-2/30 disabled:text-label-2"
             onClick={() => save.mutate()}
             disabled={save.isPending || !categoryId}
           >
@@ -186,7 +197,7 @@ export function TimeInput({ value, onChange }: { value: string; onChange: (v: st
       inputMode="numeric"
       placeholder="HH:MM"
       maxLength={5}
-      className="w-20 rounded border border-gray-200 px-2 py-1.5 text-center tabular-nums text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      className="w-20 rounded border border-separator px-2 py-1.5 text-center tabular-nums text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       value={draft}
       onChange={(e) => {
         const next = autoFormat(e.target.value, draft);
@@ -277,7 +288,7 @@ export function DateInput({
       placeholder="DD/MM/YYYY"
       maxLength={10}
       className={
-        'rounded border border-gray-200 px-2 py-1.5 text-center tabular-nums text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ' +
+        'rounded border border-separator px-2 py-1.5 text-center tabular-nums text-label outline-none focus-visible:ring-2 focus-visible:ring-accent ' +
         (className ?? '')
       }
       value={draft}
@@ -319,13 +330,12 @@ function parseDisplayToIso(raw: string): string | null {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  // macOS form idiom: right-aligned label column, control column.
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
-        {label}
-      </span>
-      {children}
-    </label>
+    <>
+      <label className="pt-1.5 text-right text-[12px] text-label-2">{label}</label>
+      <div className="min-w-0">{children}</div>
+    </>
   );
 }
 

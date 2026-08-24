@@ -73,10 +73,44 @@ fn main() {
                 })
                 .build(app)?;
 
+            // Live timer readout next to the menu bar icon (macOS). Refreshes
+            // on timer changes and every 30s for the minute rollover.
+            {
+                use tauri::Listener;
+                let handle = app.handle().clone();
+                app.listen(timetrak_lib::events::TIMER_CHANGED, move |_| update_tray_title(&handle));
+                let handle = app.handle().clone();
+                std::thread::spawn(move || loop {
+                    update_tray_title(&handle);
+                    std::thread::sleep(std::time::Duration::from_secs(30));
+                });
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Set the menu bar title to the running timer's elapsed time ("1:42"), or
+/// clear it when idle. macOS only — other platforms have no tray title.
+fn update_tray_title(app: &tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let title = {
+            let db = app.state::<Database>();
+            let conn = db.conn.lock().unwrap();
+            timetrak_lib::timer::state(&conn).ok().and_then(|s| s.running).map(|e| {
+                let mins = (chrono::Utc::now() - e.started_at).num_minutes().max(0);
+                format!("{}:{:02}", mins / 60, mins % 60)
+            })
+        };
+        if let Some(tray) = app.tray_by_id("main-tray") {
+            let _ = tray.set_title(title);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
 }
 
 const POPOVER_W: f64 = 340.0;
@@ -104,6 +138,7 @@ fn toggle_tray_window(app: &tauri::AppHandle, tray_rect: Option<tauri::Rect>) {
     )
     .inner_size(POPOVER_W, POPOVER_H)
     .decorations(false)
+    .transparent(cfg!(target_os = "macos"))
     .resizable(false)
     .always_on_top(true)
     .skip_taskbar(true)
@@ -113,6 +148,13 @@ fn toggle_tray_window(app: &tauri::AppHandle, tray_rect: Option<tauri::Rect>) {
     }
     match builder.build() {
         Ok(window) => {
+            // Native menu-bar-popover material: vibrancy + rounded corners. The
+            // 13px radius matches the root div's border-radius in TrayPopover.
+            #[cfg(target_os = "macos")]
+            {
+                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+                let _ = apply_vibrancy(&window, NSVisualEffectMaterial::Popover, None, Some(13.0));
+            }
             // Hide the popover when it loses focus — clicking outside (or opening
             // another window via the header icons) auto-dismisses it.
             let win_for_blur = window.clone();

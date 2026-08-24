@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Table, ChartNoAxesGantt, LayoutGrid, Plus } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
@@ -22,10 +23,10 @@ import type { DashViewProps, DashView } from './views/types';
 
 const FONT = { fontFamily: 'system-ui, -apple-system, sans-serif' } as const;
 
-const VIEWS: { id: DashView; label: string; glyph: string }[] = [
-  { id: 'table',    label: 'Table',    glyph: '☰' },
-  { id: 'timeline', label: 'Timeline', glyph: '⏱' },
-  { id: 'heatmap',  label: 'Heatmap',  glyph: '▦' },
+const VIEWS: { id: DashView; label: string; icon: typeof Table }[] = [
+  { id: 'table',    label: 'Table',    icon: Table },
+  { id: 'timeline', label: 'Timeline', icon: ChartNoAxesGantt },
+  { id: 'heatmap',  label: 'Heatmap',  icon: LayoutGrid },
 ];
 
 export function Dashboard() {
@@ -88,20 +89,20 @@ export function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-white text-[#1d1d1f]" style={FONT}>
-      {/* Top bar — title, view toggle, export */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-black/5 px-3 py-1.5">
-        <div className="text-[13px] font-medium">Dashboard</div>
+    <div className="flex h-screen flex-col bg-surface text-label" style={FONT}>
+      {/* Top bar — doubles as the macOS overlay title bar (drag region + traffic-light inset) */}
+      <header data-tauri-drag-region className="flex h-10 shrink-0 items-center gap-3 border-b border-separator pl-[84px] pr-3">
+        <div className="pointer-events-none text-[13px] font-semibold">Dashboard</div>
         <div className="ml-auto flex items-center gap-2">
           <ViewToggle value={view} onChange={setView} />
           <button
-            className="h-6 rounded-md border border-black/10 bg-white px-2.5 text-[11px] font-medium text-[#1d1d1f] hover:bg-black/[0.04]"
+            className="inline-flex h-6 items-center gap-1 rounded-md border border-separator bg-raised px-2.5 text-[11px] font-medium text-label hover:bg-fill-hover"
             onClick={() => setCreating(true)}
           >
-            ＋ New entry
+            <Plus className="h-3 w-3" aria-hidden /> New entry
           </button>
           <button
-            className="h-6 rounded-md bg-[#0a84ff] px-2.5 text-[11px] font-medium text-white hover:bg-[#0a74e0]"
+            className="h-6 rounded-md bg-accent px-2.5 text-[11px] font-medium text-white hover:bg-accent-hover"
             onClick={onExport}
           >
             Export CSV
@@ -147,7 +148,7 @@ export function Dashboard() {
 
 function ViewToggle({ value, onChange }: { value: DashView; onChange: (v: DashView) => void }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-md bg-black/[0.06] p-0.5">
+    <div className="flex items-center gap-0.5 rounded-md bg-fill p-0.5">
       {VIEWS.map((v) => (
         <button
           key={v.id}
@@ -155,11 +156,11 @@ function ViewToggle({ value, onChange }: { value: DashView; onChange: (v: DashVi
           className={
             'flex items-center gap-1 rounded-[5px] px-2 py-0.5 text-[11px] transition-colors ' +
             (value === v.id
-              ? 'bg-white text-[#1d1d1f] shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
-              : 'text-[#86868b] hover:text-[#1d1d1f]')
+              ? 'bg-raised text-label shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
+              : 'text-label-2 hover:text-label')
           }
         >
-          <span className="text-[12px] leading-none">{v.glyph}</span>
+          <v.icon className="h-3 w-3" aria-hidden />
           <span>{v.label}</span>
         </button>
       ))}

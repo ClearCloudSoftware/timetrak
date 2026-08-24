@@ -16,7 +16,7 @@ export function TodayList({ entries, categories, projects, runningId, onResume }
 
   if (stopped.length === 0) {
     return (
-      <div className="px-2 py-3 text-[11px] text-[#86868b]">No timers stopped today yet.</div>
+      <div className="px-2 py-3 text-[11px] text-label-2">No timers stopped today yet.</div>
     );
   }
 

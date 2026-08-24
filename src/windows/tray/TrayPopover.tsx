@@ -11,6 +11,7 @@ import {
 import { qk } from '../../lib/query';
 import type { Category, Id, Project, TimeEntry } from '../../types';
 import { todayRangeUtc } from './format';
+import { Plus } from 'lucide-react';
 import { HeaderIcons } from './HeaderIcons';
 import { InlineTimerForm } from './InlineTimerForm';
 import type { SubmitValue } from './InlineTimerForm';
@@ -73,8 +74,8 @@ function withLocalTime(iso: string, hhmm: string, afterIso?: string): string {
 
 function Header({ onError }: { onError: (msg: string) => void }) {
   return (
-    <div className="flex items-center justify-between px-3 py-2 border-b border-black/5">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#86868b]">TimeTrak</div>
+    <div className="flex items-center justify-between px-3 py-2 border-b border-separator">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-label-2">TimeTrak</div>
       <HeaderIcons onError={onError} />
     </div>
   );
@@ -104,26 +105,26 @@ function StatusCard({
 
   return (
     <div
-      className="overflow-hidden rounded-xl bg-white/90 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur"
+      className="overflow-hidden rounded-xl bg-raised/90 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur"
       style={{ borderLeft: `3px solid ${cat?.color ?? '#0a84ff'}` }}
     >
       <div className="px-3 py-2">
-        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-[#86868b]">
-          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#34c759]" />
+        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-label-2">
+          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
           Tracking
         </div>
         <div className="mt-0.5 flex items-baseline justify-between">
           <div>
-            <div className="text-[13px] font-medium leading-tight text-[#1d1d1f]">{cat?.name ?? '?'}</div>
-            {proj && <div className="text-[11px] leading-tight text-[#86868b]">{proj.name}</div>}
+            <div className="text-[13px] font-medium leading-tight text-label">{cat?.name ?? '?'}</div>
+            {proj && <div className="text-[11px] leading-tight text-label-2">{proj.name}</div>}
           </div>
-          <div className="font-mono text-[20px] font-light tabular-nums leading-none text-[#1d1d1f]">
+          <div className="font-mono text-[20px] font-light tabular-nums leading-none text-label">
             {formatElapsed(e)}
           </div>
         </div>
       </div>
       <button
-        className="block w-full border-t border-black/5 bg-black/[0.02] px-3 py-1 text-center text-[12px] font-medium text-[#ff453a] transition-colors hover:bg-[#ff453a]/[0.06] disabled:opacity-50"
+        className="block w-full border-t border-separator bg-fill-hover px-3 py-1 text-center text-[12px] font-medium text-destructive transition-colors hover:bg-destructive/[0.06] disabled:opacity-50"
         disabled={isStopping}
         onClick={onStop}
       >
@@ -197,6 +198,21 @@ export function TrayPopover() {
       cancelled = true;
       unlisten?.();
     };
+  }, []);
+
+  // Esc: cancel an in-progress edit first; a second Esc dismisses the popover.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setMode((m) => {
+        if (m.kind !== 'browse') return { kind: 'browse' };
+        void getCurrentWindow().hide();
+        return m;
+      });
+      setErrorMessage(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // Event subscriptions — keep tray popover in sync with mutations from other
@@ -341,8 +357,8 @@ export function TrayPopover() {
 
   return (
     <div
-      className="flex h-full flex-col bg-[#ebebee]"
-      style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+      className="flex h-full flex-col overflow-hidden rounded-[13px] ring-1 ring-inset ring-separator"
+      style={{ background: 'var(--tray-tint)', fontFamily: 'system-ui, -apple-system, sans-serif' }}
     >
       <Header onError={setErrorMessage} />
 
@@ -387,9 +403,9 @@ export function TrayPopover() {
             <button
               type="button"
               onClick={handleNew}
-              className="flex-1 rounded-md border border-dashed border-black/15 bg-white/40 px-3 py-1.5 text-[11px] text-[#86868b] transition-colors hover:border-black/30 hover:bg-white/70 hover:text-[#1d1d1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]"
+              className="flex flex-1 items-center justify-center gap-1 rounded-md border border-dashed border-separator bg-raised/40 px-3 py-1.5 text-[11px] text-label-2 transition-colors hover:border-label-2/60 hover:bg-raised/70 hover:text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              ＋ New timer
+              <Plus className="h-3 w-3" aria-hidden /> New timer
             </button>
             <button
               type="button"
@@ -401,7 +417,7 @@ export function TrayPopover() {
                   setErrorMessage(String(err));
                 }
               }}
-              className="rounded-md px-2 py-1.5 text-[11px] text-[#86868b] transition-colors hover:bg-black/[0.04] hover:text-[#1d1d1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]"
+              className="rounded-md px-2 py-1.5 text-[11px] text-label-2 transition-colors hover:bg-fill-hover hover:text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               title="Add an entry for time already past"
             >
               Add past entry…
@@ -411,7 +427,7 @@ export function TrayPopover() {
 
         {/* Today's entries — always below */}
         <section>
-          <div className="px-1 pb-1 text-[10px] uppercase tracking-[0.08em] text-[#86868b]">Today</div>
+          <div className="px-1 pb-1 text-[10px] uppercase tracking-[0.08em] text-label-2">Today</div>
           {mode.kind === 'edit' ? (
             <div className="space-y-1">
               {/* Clicked entry pinned at the top of edit area */}
@@ -455,7 +471,7 @@ export function TrayPopover() {
 
         {/* Error toast */}
         {errorMessage && (
-          <div className="rounded-md bg-[#ff453a]/10 px-2 py-1 text-[10px] text-[#ff453a]">
+          <div className="rounded-md bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
             {errorMessage}
           </div>
         )}

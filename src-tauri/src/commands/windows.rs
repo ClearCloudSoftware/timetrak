@@ -27,19 +27,30 @@ fn open_window_internal(app: &AppHandle, name: &str) -> AppResult<()> {
         return Ok(());
     }
     let title = match name {
-        "dashboard" => "TimeTrak — Dashboard",
-        "settings" => "TimeTrak — Settings",
+        "settings" => "Settings",
         _ => "TimeTrak",
     };
-    WebviewWindowBuilder::new(
+    #[allow(unused_mut)]
+    let mut builder = WebviewWindowBuilder::new(
         app,
         name,
         WebviewUrl::App(format!("index.html?window={name}").into()),
     )
-    .title(title)
-    .inner_size(900.0, 600.0)
-    .build()
-    .map_err(|e| AppError::Other(e.to_string()))?;
+    .title(title);
+    builder = match name {
+        // Settings: compact utility window, System Settings-sized.
+        "settings" => builder.inner_size(620.0, 460.0).min_inner_size(560.0, 400.0),
+        _ => builder.inner_size(920.0, 620.0).min_inner_size(680.0, 440.0),
+    };
+    // Native chrome: content extends under a transparent title bar; the React
+    // headers reserve space for the traffic lights and act as drag regions.
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+    builder.build().map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }
 

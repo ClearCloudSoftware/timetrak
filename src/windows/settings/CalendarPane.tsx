@@ -63,26 +63,26 @@ function ConnectionPanel({ status, qc }: { status: ReturnType<typeof api.calenda
         {authError && status.kind === 'oauth' && (
           <AuthExpiredBanner errorMsg={status.last_sync_error!} qc={qc} />
         )}
-        <div className="rounded-md border border-black/10 bg-white p-3">
+        <div className="rounded-md border border-separator bg-raised p-3">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-[12px] text-[#1d1d1f]">
+              <div className="text-[12px] text-label">
                 Connected via <strong>{status.kind === 'oauth' ? 'Google' : 'ICS'}</strong>
                 {status.account_email && <> as {status.account_email}</>}
               </div>
               {status.last_sync_at && (
-                <div className="mt-0.5 text-[11px] text-[#86868b]">
+                <div className="mt-0.5 text-[11px] text-label-2">
                   Last sync {new Date(status.last_sync_at).toLocaleString()}
                 </div>
               )}
               {status.last_sync_error && !authError && (
-                <div className="mt-0.5 text-[11px] text-[#ff453a]">
+                <div className="mt-0.5 text-[11px] text-destructive">
                   Last error: {status.last_sync_error}
                 </div>
               )}
             </div>
             <button
-              className="h-6 rounded-md border border-black/10 px-2.5 text-[11px] text-[#ff453a] hover:bg-[#ff453a]/[0.06]"
+              className="h-6 rounded-md border border-separator px-2.5 text-[11px] text-destructive hover:bg-destructive/[0.06]"
               onClick={() => disconnect.mutate()}
               disabled={disconnect.isPending}
             >
@@ -97,10 +97,10 @@ function ConnectionPanel({ status, qc }: { status: ReturnType<typeof api.calenda
   return (
     <Section title="Connection">
       <GoogleConnect />
-      <div className="my-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.08em] text-[#86868b]">
-        <div className="flex-1 border-t border-black/5" />
+      <div className="my-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.08em] text-label-2">
+        <div className="flex-1 border-t border-separator" />
         or
-        <div className="flex-1 border-t border-black/5" />
+        <div className="flex-1 border-t border-separator" />
       </div>
       <IcsConnect />
     </Section>
@@ -145,7 +145,7 @@ function GoogleConnect() {
 
   if (poll?.kind === 'approved') {
     return (
-      <div className="rounded-md border border-[#34c759]/30 bg-[#34c759]/[0.06] p-3 text-[12px]">
+      <div className="rounded-md border border-success/30 bg-success/[0.06] p-3 text-[12px]">
         Connected{poll.account_email ? ` as ${poll.account_email}` : ''}.
       </div>
     );
@@ -153,28 +153,28 @@ function GoogleConnect() {
 
   if (device && (poll?.kind === 'pending' || poll?.kind === 'slow_down')) {
     return (
-      <div className="rounded-md border border-black/10 bg-white p-3">
-        <div className="text-[11px] text-[#86868b]">
+      <div className="rounded-md border border-separator bg-raised p-3">
+        <div className="text-[11px] text-label-2">
           Open{' '}
           <button
-            className="text-[#0a84ff] hover:underline"
+            className="text-accent hover:underline"
             onClick={() => { try { window.open(device.verification_url, '_blank'); } catch {} }}
           >
             {device.verification_url}
           </button>
           {' '}and enter:
         </div>
-        <div className="mt-1 select-all font-mono text-[18px] font-medium tracking-[0.15em] text-[#1d1d1f]">
+        <div className="mt-1 select-all font-mono text-[18px] font-medium tracking-[0.15em] text-label">
           {device.user_code}
         </div>
-        <div className="mt-1 text-[10px] text-[#86868b]">Waiting for confirmation…</div>
+        <div className="mt-1 text-[10px] text-label-2">Waiting for confirmation…</div>
       </div>
     );
   }
 
   if (poll?.kind === 'denied' || poll?.kind === 'expired' || poll?.kind === 'error') {
     return (
-      <div className="rounded-md border border-[#ff453a]/30 bg-[#ff453a]/[0.06] p-3 text-[12px] text-[#ff453a]">
+      <div className="rounded-md border border-destructive/30 bg-destructive/[0.06] p-3 text-[12px] text-destructive">
         {poll.kind === 'denied' && 'You declined the request.'}
         {poll.kind === 'expired' && 'The code expired. Try again.'}
         {poll.kind === 'error' && `Error: ${poll.message}`}
@@ -189,14 +189,14 @@ function GoogleConnect() {
   return (
     <>
       <button
-        className="h-7 w-full rounded-md bg-[#0a84ff] px-3 text-[12px] font-medium text-white hover:bg-[#0a74e0] disabled:bg-[#d2d2d7]"
+        className="h-7 w-full rounded-md bg-accent px-3 text-[12px] font-medium text-white hover:bg-accent-hover disabled:bg-label-2/30"
         onClick={() => start.mutate()}
         disabled={start.isPending}
       >
         {start.isPending ? 'Starting…' : 'Connect Google Calendar'}
       </button>
       {start.isError && (
-        <div className="mt-1.5 rounded-md bg-[#ff453a]/10 px-2 py-1 text-[11px] text-[#ff453a]">
+        <div className="mt-1.5 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">
           {String(start.error)}
         </div>
       )}
@@ -215,26 +215,26 @@ function IcsConnect() {
 
   return (
     <div className="space-y-1.5">
-      <div className="text-[11px] text-[#86868b]">
+      <div className="text-[11px] text-label-2">
         Or paste private ICS URLs (Google Calendar → Settings → Integrate calendar → Secret address in iCal format).
       </div>
       {rows.map((r, i) => (
         <div key={i} className="flex gap-1.5">
           <input
-            className="h-6 w-28 rounded-md border border-black/10 bg-white px-2 text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]/40"
+            className="h-6 w-28 rounded-md border border-separator bg-raised px-2 text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             placeholder="Name"
             value={r.display_name}
             onChange={(e) => updateRow(i, { ...r, display_name: e.target.value })}
           />
           <input
-            className="h-6 flex-1 rounded-md border border-black/10 bg-white px-2 text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]/40"
+            className="h-6 flex-1 rounded-md border border-separator bg-raised px-2 text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
             value={r.url}
             onChange={(e) => updateRow(i, { ...r, url: e.target.value })}
           />
           {rows.length > 1 && (
             <button
-              className="h-6 rounded-md px-2 text-[11px] text-[#ff453a] hover:bg-[#ff453a]/[0.06]"
+              className="h-6 rounded-md px-2 text-[11px] text-destructive hover:bg-destructive/[0.06]"
               onClick={() => setRows(rows.filter((_, j) => j !== i))}
             >−</button>
           )}
@@ -242,11 +242,11 @@ function IcsConnect() {
       ))}
       <div className="flex items-center gap-2">
         <button
-          className="h-6 rounded-md border border-black/10 px-2 text-[11px] hover:bg-black/[0.04]"
+          className="h-6 rounded-md border border-separator px-2 text-[11px] hover:bg-fill-hover"
           onClick={() => setRows([...rows, { display_name: '', url: '' }])}
         >＋ Add another</button>
         <button
-          className="h-6 rounded-md bg-[#0a84ff] px-3 text-[11px] font-medium text-white hover:bg-[#0a74e0] disabled:bg-[#d2d2d7]"
+          className="h-6 rounded-md bg-accent px-3 text-[11px] font-medium text-white hover:bg-accent-hover disabled:bg-label-2/30"
           onClick={() => connect.mutate()}
           disabled={connect.isPending || !rows.some((r) => r.url.trim())}
         >
@@ -254,7 +254,7 @@ function IcsConnect() {
         </button>
       </div>
       {connect.isError && (
-        <div className="text-[11px] text-[#ff453a]">{String(connect.error)}</div>
+        <div className="text-[11px] text-destructive">{String(connect.error)}</div>
       )}
     </div>
   );
@@ -273,9 +273,9 @@ function MeetingCategoryPanel({
 }) {
   return (
     <Section title="Meeting category">
-      <div className="flex items-center gap-2 rounded-md border border-black/10 bg-white p-2">
+      <div className="flex items-center gap-2 rounded-md border border-separator bg-raised p-2">
         <select
-          className="h-6 flex-1 rounded-md border border-black/10 bg-white px-2 text-[12px]"
+          className="h-6 flex-1 rounded-md border border-separator bg-raised px-2 text-[12px]"
           value={categoryId ?? ''}
           onChange={(e) => onChange(e.target.value)}
         >
@@ -283,7 +283,7 @@ function MeetingCategoryPanel({
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
-      <div className="mt-1 text-[11px] text-[#86868b]">
+      <div className="mt-1 text-[11px] text-label-2">
         Imported calendar events will be created with this category.
       </div>
     </Section>
@@ -299,9 +299,9 @@ function CalendarsPanel({ calendars, qc }: { calendars: CalendarRow[]; qc: Retur
 
   return (
     <Section title="Calendars">
-      <div className="divide-y divide-black/5 rounded-md border border-black/10 bg-white">
+      <div className="divide-y divide-separator rounded-md border border-separator bg-raised">
         {calendars.length === 0 && (
-          <div className="px-3 py-2 text-[11px] text-[#86868b]">
+          <div className="px-3 py-2 text-[11px] text-label-2">
             No calendars discovered. Try Sync now.
           </div>
         )}
@@ -331,23 +331,23 @@ function SyncPanel({ status }: { status: { meeting_category_id: string | null } 
     <Section title="Sync">
       <div className="flex items-center gap-2">
         <button
-          className="h-6 rounded-md bg-[#0a84ff] px-3 text-[11px] font-medium text-white hover:bg-[#0a74e0] disabled:bg-[#d2d2d7]"
+          className="h-6 rounded-md bg-accent px-3 text-[11px] font-medium text-white hover:bg-accent-hover disabled:bg-label-2/30"
           onClick={() => sync.mutate()}
           disabled={sync.isPending || blocked}
         >
           {sync.isPending ? 'Syncing…' : 'Sync now'}
         </button>
         {blocked && (
-          <span className="text-[11px] text-[#ff453a]">Pick a meeting category first.</span>
+          <span className="text-[11px] text-destructive">Pick a meeting category first.</span>
         )}
       </div>
       {report && (
-        <div className="mt-1.5 text-[11px] text-[#86868b]">
+        <div className="mt-1.5 text-[11px] text-label-2">
           {report.created} created · {report.updated} updated · {report.deleted} removed · {report.conflicts} conflicts
         </div>
       )}
       {sync.isError && (
-        <div className="mt-1 text-[11px] text-[#ff453a]">{String(sync.error)}</div>
+        <div className="mt-1 text-[11px] text-destructive">{String(sync.error)}</div>
       )}
     </Section>
   );
@@ -361,7 +361,7 @@ function SyncSettingsPanel({
 }) {
   return (
     <Section title="Sync settings">
-      <div className="space-y-1.5 rounded-md border border-black/10 bg-white p-2.5">
+      <div className="space-y-1.5 rounded-md border border-separator bg-raised p-2.5">
         <NumberRow
           label="Background sync"
           suffix="min"
@@ -432,28 +432,28 @@ function NumberRow({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <label className="flex-1 text-[12px] text-[#1d1d1f]">{label}</label>
+        <label className="flex-1 text-[12px] text-label">{label}</label>
         <input
           type="number"
           min={min}
           max={max}
           step={1}
-          className="h-6 w-16 rounded-md border border-black/10 bg-white px-2 text-right text-[12px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-[#0a84ff]/40"
+          className="h-6 w-16 rounded-md border border-separator bg-raised px-2 text-right text-[12px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
         />
-        <span className="w-8 text-[11px] text-[#86868b]">{suffix}</span>
+        <span className="w-8 text-[11px] text-label-2">{suffix}</span>
       </div>
-      {help && <div className="ml-[2px] mt-0.5 text-[11px] text-[#86868b]">{help}</div>}
+      {help && <div className="ml-[2px] mt-0.5 text-[11px] text-label-2">{help}</div>}
       {dirty && !valid && (
-        <div className="ml-[2px] mt-0.5 text-[11px] text-[#ff453a]">
+        <div className="ml-[2px] mt-0.5 text-[11px] text-destructive">
           Must be a whole number between {min} and {max}.
         </div>
       )}
-      {saving && <div className="ml-[2px] mt-0.5 text-[11px] text-[#86868b]">Saving…</div>}
-      {error && <div className="ml-[2px] mt-0.5 text-[11px] text-[#ff453a]">{error}</div>}
+      {saving && <div className="ml-[2px] mt-0.5 text-[11px] text-label-2">Saving…</div>}
+      {error && <div className="ml-[2px] mt-0.5 text-[11px] text-destructive">{error}</div>}
     </div>
   );
 }
@@ -461,7 +461,7 @@ function NumberRow({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[#86868b]">{title}</div>
+      <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-label-2">{title}</div>
       {children}
     </section>
   );
@@ -504,29 +504,29 @@ function AuthExpiredBanner({
   };
 
   return (
-    <div className="mb-1.5 rounded-md border border-[#ff9f0a]/40 bg-[#fff8e6] p-2.5">
+    <div className="mb-1.5 rounded-md border border-warning/40 bg-warning/10 p-2.5">
       <div className="flex items-start gap-2">
-        <span className="text-[#ff9f0a]">⚠</span>
+        <span className="text-warning">⚠</span>
         <div className="flex-1 text-[12px]">
-          <div className="font-medium text-[#1d1d1f]">Authorization expired</div>
-          <div className="mt-0.5 text-[11px] text-[#86868b]">
+          <div className="font-medium text-label">Authorization expired</div>
+          <div className="mt-0.5 text-[11px] text-label-2">
             Google revoked or expired the refresh token (apps in OAuth
             "testing" mode expire after 7 days). Sync will keep failing
             until you reconnect.
           </div>
-          <div className="mt-0.5 text-[10px] text-[#86868b]">
+          <div className="mt-0.5 text-[10px] text-label-2">
             <span className="opacity-70">Details:</span> {errorMsg}
           </div>
         </div>
         <button
-          className="h-7 rounded-md bg-[#0a84ff] px-3 text-[11px] font-medium text-white hover:bg-[#0a74e0] disabled:bg-[#d2d2d7]"
+          className="h-7 rounded-md bg-accent px-3 text-[11px] font-medium text-white hover:bg-accent-hover disabled:bg-label-2/30"
           onClick={reconnect}
           disabled={reconnecting}
         >
           {reconnecting ? 'Disconnecting…' : 'Reconnect'}
         </button>
       </div>
-      {error && <div className="mt-1 text-[11px] text-[#ff453a]">{error}</div>}
+      {error && <div className="mt-1 text-[11px] text-destructive">{error}</div>}
     </div>
   );
 }
