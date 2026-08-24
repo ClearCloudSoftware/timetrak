@@ -262,11 +262,13 @@ export function PreferencesPane() {
   const [nudge, setNudge] = useState(false);
   const [workStart, setWorkStart] = useState('09:00');
   const [workEnd, setWorkEnd] = useState('18:00');
+  const [idleThreshold, setIdleThreshold] = useState('10');
   useEffect(() => { isEnabled().then(setAutostart); }, []);
   useEffect(() => {
     api.getPref('nudge_enabled').then((v) => setNudge(v === '1'));
     api.getPref('nudge_work_start').then((v) => v && setWorkStart(v));
     api.getPref('nudge_work_end').then((v) => v && setWorkEnd(v));
+    api.getPref('idle_threshold_minutes').then((v) => v && setIdleThreshold(v));
   }, []);
   const toggle = async () => {
     if (autostart) { await disable(); setAutostart(false); }
@@ -322,6 +324,15 @@ export function PreferencesPane() {
             }}
           />
         </div>
+      </Row>
+      <Row label="Idle detection" hint="Ask what to do after this many idle minutes. 0 disables.">
+        <input
+          className="h-6 w-14 rounded-md border border-separator bg-raised px-1 text-center text-[11px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          value={idleThreshold}
+          onChange={(e) => setIdleThreshold(e.target.value)}
+          onBlur={() => void api.setPref('idle_threshold_minutes', idleThreshold)}
+          placeholder="10"
+        />
       </Row>
       <Row label="Launch at login" hint="Start TimeTrak when you log into your Mac or PC.">
         <Switch checked={autostart ?? false} disabled={autostart == null} onChange={toggle} />

@@ -42,6 +42,7 @@ vi.mock('../../lib/events', () => ({
   onProjectsChanged: vi.fn(async () => () => {}),
   onCalendarSwitched: vi.fn(async () => () => {}),
   onCalendarSynced: vi.fn(async () => () => {}),
+  onIdleDetected: vi.fn(async () => () => {}),
 }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }));
 vi.mock('@tauri-apps/api/window', () => ({

@@ -20,6 +20,7 @@ import { TodayList } from './TodayList';
 import { TodayEntryRow } from './TodayEntryRow';
 import { TodayFooter } from './TodayFooter';
 import { CalendarToasts } from './CalendarToasts';
+import { IdleToast } from './IdleToast';
 
 // ---------------------------------------------------------------------------
 // Mode state machine
@@ -368,6 +369,7 @@ export function TrayPopover() {
 
       <div className="px-2 pt-1.5">
         <CalendarToasts />
+        <IdleToast />
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
