@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
-import { ask, message } from '@tauri-apps/plugin-dialog';
+import { ask, message, save, open } from '@tauri-apps/plugin-dialog';
 import { Trash2 } from 'lucide-react';
 import * as api from '../../lib/api';
 import { applyThemePref, getThemePref, type ThemePref } from '../../lib/theme';
@@ -328,6 +328,46 @@ export function PreferencesPane() {
       </Row>
       <Row label="Daily summary" hint="A notification at end of day with totals.">
         <span className="text-[11px] text-label-2">18:00 (edit DB to change)</span>
+      </Row>
+      <Row label="Back up" hint="Save a snapshot of all tracked data.">
+        <button
+          className="h-6 rounded-md border border-separator bg-raised px-2.5 text-[11px] font-medium text-label hover:bg-fill-hover"
+          onClick={async () => {
+            const dest = await save({
+              defaultPath: `TimeTrak-backup-${new Date().toISOString().slice(0, 10)}.sqlite`,
+              filters: [{ name: 'SQLite', extensions: ['sqlite'] }],
+            });
+            if (!dest) return;
+            try {
+              await api.backupDb(dest);
+              await message('Backup saved.', { title: 'TimeTrak' });
+            } catch (e) {
+              await message(String(e), { kind: 'error' });
+            }
+          }}
+        >
+          Back up now…
+        </button>
+      </Row>
+      <Row label="Restore" hint="Replaces all current data and restarts the app.">
+        <button
+          className="h-6 rounded-md border border-separator bg-raised px-2.5 text-[11px] font-medium text-destructive hover:bg-fill-hover"
+          onClick={async () => {
+            const src = await open({ filters: [{ name: 'SQLite', extensions: ['sqlite'] }], multiple: false });
+            if (typeof src !== 'string') return;
+            const sure = await ask('Replace ALL current data with this backup? TimeTrak will restart.', {
+              title: 'Restore Backup', kind: 'warning', okLabel: 'Restore',
+            });
+            if (!sure) return;
+            try {
+              await api.restoreDb(src);
+            } catch (e) {
+              await message(String(e), { kind: 'error' });
+            }
+          }}
+        >
+          Restore from backup…
+        </button>
       </Row>
     </div>
   );
