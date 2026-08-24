@@ -1,6 +1,7 @@
 //! Each follow-up plan adds its command handlers to its own submodule
 //! and registers them in `register_handlers` below.
 
+pub mod backup;
 pub mod calendar;
 pub mod categories;
 pub mod entries;
@@ -58,6 +59,8 @@ macro_rules! timetrak_handlers {
             timetrak_lib::calendar::scheduler::calendar_extend,
             timetrak_lib::calendar::scheduler::calendar_stop_meeting,
             timetrak_lib::calendar::scheduler::calendar_undo_switch,
+            timetrak_lib::commands::backup::backup_db,
+            timetrak_lib::commands::backup::restore_db,
             // (other plans append here)
         ]
     };

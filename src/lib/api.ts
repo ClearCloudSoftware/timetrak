@@ -100,3 +100,7 @@ export const calendarStopMeeting = (entryId: string) =>
 // --- Prefs (plan: not-tracking nudge) ---
 export const getPref = (key: string) => invoke<string | null>('get_pref', { key });
 export const setPref = (key: string, value: string) => invoke<void>('set_pref', { key, value });
+
+// --- Backup / restore (plan: tracking-feature-pack part 4) ---
+export const backupDb = (dest: string) => invoke<void>('backup_db', { dest });
+export const restoreDb = (src: string) => invoke<void>('restore_db', { src });
