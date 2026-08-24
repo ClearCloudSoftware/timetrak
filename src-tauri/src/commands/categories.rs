@@ -64,10 +64,13 @@ pub fn goals_list(db: tauri::State<'_, crate::db::Database>) -> crate::error::Ap
 
 #[tauri::command]
 pub fn goal_set(
+    app: AppHandle,
     db: tauri::State<'_, crate::db::Database>,
     category_id: uuid::Uuid,
     target_minutes: Option<u32>,
 ) -> crate::error::AppResult<()> {
     let conn = db.conn.lock().unwrap();
-    crate::repo::goals::set(&conn, category_id, target_minutes)
+    crate::repo::goals::set(&conn, category_id, target_minutes)?;
+    let _ = app.emit(crate::events::CATEGORIES_CHANGED, ());
+    Ok(())
 }

@@ -45,6 +45,16 @@ impl Database {
             if path.exists() {
                 std::fs::rename(path, pre_restore_path(path))?;
             }
+            // A hot journal/-wal/-shm left behind by the old live file must
+            // not survive the swap: if SQLite saw one next to the restored
+            // file it would replay those stale pages into it on open,
+            // corrupting the just-restored database.
+            for suffix in ["-journal", "-wal", "-shm"] {
+                let mut sidecar_name = path.file_name().unwrap_or_default().to_os_string();
+                sidecar_name.push(suffix);
+                let sidecar = path.with_file_name(sidecar_name);
+                let _ = std::fs::remove_file(sidecar);
+            }
             std::fs::rename(&pending, path)?;
         }
         let conn = Connection::open(path)?;
@@ -112,6 +122,17 @@ mod tests {
             conn.execute("INSERT INTO app_meta (key, value) VALUES ('marker', 'restored')", []).unwrap();
             conn.execute("VACUUM INTO ?1", [pending.to_str().unwrap()]).unwrap();
         }
+        // Stale sidecar files from the pre-restore live file must not survive
+        // to be replayed into the restored database. -wal/-shm are only ever
+        // touched by SQLite itself in WAL mode (unused here), so their
+        // survival is a reliable signal that our explicit cleanup ran.
+        let live_journal = path.with_file_name("timetrak.sqlite-journal");
+        let live_wal = path.with_file_name("timetrak.sqlite-wal");
+        let live_shm = path.with_file_name("timetrak.sqlite-shm");
+        std::fs::write(&live_journal, b"stale journal junk").unwrap();
+        std::fs::write(&live_wal, b"stale wal junk").unwrap();
+        std::fs::write(&live_shm, b"stale shm junk").unwrap();
+
         // Re-open the live path: pending must win.
         let db = Database::open(&path).unwrap();
         let conn = db.conn.lock().unwrap();
@@ -120,6 +141,9 @@ mod tests {
             .unwrap();
         assert_eq!(marker, "restored");
         assert!(!pending.exists());
+        assert!(!live_journal.exists(), "stale journal must be removed before swap");
+        assert!(!live_wal.exists(), "stale -wal must be removed before swap");
+        assert!(!live_shm.exists(), "stale -shm must be removed before swap");
 
         // The old live DB must be preserved as a fallback, not overwritten.
         let pre_restore = path.with_file_name("timetrak.sqlite.pre-restore");

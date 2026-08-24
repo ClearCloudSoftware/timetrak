@@ -45,7 +45,10 @@ export function Dashboard() {
     const unsubs: Array<() => void> = [];
     onEntriesChanged(() => qc.invalidateQueries({ queryKey: ['entries'] })).then((u) => unsubs.push(u));
     onTimerChanged(() => qc.invalidateQueries({ queryKey: ['entries'] })).then((u) => unsubs.push(u));
-    onCategoriesChanged(() => qc.invalidateQueries({ queryKey: qk.categories })).then((u) => unsubs.push(u));
+    onCategoriesChanged(() => {
+      qc.invalidateQueries({ queryKey: qk.categories });
+      qc.invalidateQueries({ queryKey: ['goals'] });
+    }).then((u) => unsubs.push(u));
     onProjectsChanged(() => qc.invalidateQueries({ queryKey: qk.projects })).then((u) => unsubs.push(u));
     return () => { unsubs.forEach((u) => u()); };
   }, [qc]);
