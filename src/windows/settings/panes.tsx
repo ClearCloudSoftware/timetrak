@@ -5,6 +5,7 @@ import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { ask, message } from '@tauri-apps/plugin-dialog';
 import { Trash2 } from 'lucide-react';
 import * as api from '../../lib/api';
+import { applyThemePref, getThemePref, type ThemePref } from '../../lib/theme';
 import { qk } from '../../lib/query';
 import type { Category, Project } from '../../types';
 
@@ -216,15 +217,44 @@ function ProjRow({ p, onSave, onDelete }: { p: Project; onSave: (p: Project) => 
   );
 }
 
+const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+
 export function PreferencesPane() {
   const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [theme, setThemeState] = useState<ThemePref>(getThemePref);
   useEffect(() => { isEnabled().then(setAutostart); }, []);
   const toggle = async () => {
     if (autostart) { await disable(); setAutostart(false); }
     else { await enable(); setAutostart(true); }
   };
+  const pickTheme = (p: ThemePref) => {
+    setThemeState(p);
+    applyThemePref(p);
+  };
   return (
     <div className="space-y-3 text-[12px]" style={FONT}>
+      <Row label="Appearance" hint="Auto follows the system setting.">
+        <div className="flex items-center gap-0.5 rounded-md bg-fill p-0.5">
+          {THEME_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              onClick={() => pickTheme(o.value)}
+              className={
+                'rounded-[5px] px-2.5 py-0.5 text-[11px] transition-colors ' +
+                (theme === o.value
+                  ? 'bg-raised text-label shadow-[0_1px_2px_rgba(0,0,0,0.12)]'
+                  : 'text-label-2 hover:text-label')
+              }
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </Row>
       <Row label="Launch at login" hint="Start TimeTrak when you log into your Mac or PC.">
         <Switch checked={autostart ?? false} disabled={autostart == null} onChange={toggle} />
       </Row>
