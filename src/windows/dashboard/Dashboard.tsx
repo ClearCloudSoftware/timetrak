@@ -51,15 +51,15 @@ export function Dashboard() {
   }, [qc]);
 
   const [editing, setEditing] = useState<TimeEntry | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<{ initialStart?: Date; initialEnd?: Date } | null>(null);
 
   // Honor the tray's "Add past entry…" request: a pending flag is set on the
   // Rust side before this window opens, and an event is emitted in case the
   // window was already open.
   useEffect(() => {
     let cancelled = false;
-    api.consumePendingNewEntry().then((p) => { if (p && !cancelled) setCreating(true); });
-    const unlistenPromise = listen('open-new-entry', () => setCreating(true));
+    api.consumePendingNewEntry().then((p) => { if (p && !cancelled) setCreating({}); });
+    const unlistenPromise = listen('open-new-entry', () => setCreating({}));
     return () => { cancelled = true; unlistenPromise.then((u) => u()); };
   }, []);
 
@@ -88,6 +88,7 @@ export function Dashboard() {
       void ask('Delete this entry?', { title: 'Delete Entry', kind: 'warning', okLabel: 'Delete' })
         .then((ok) => { if (ok) deleteMut.mutate(e.id); });
     },
+    onCreateRange: (start, end) => setCreating({ initialStart: start, initialEnd: end }),
     isLoading: entries.isLoading,
   };
 
@@ -100,7 +101,7 @@ export function Dashboard() {
           <ViewToggle value={view} onChange={setView} />
           <button
             className="inline-flex h-6 items-center gap-1 rounded-md border border-separator bg-raised px-2.5 text-[11px] font-medium text-label hover:bg-fill-hover"
-            onClick={() => setCreating(true)}
+            onClick={() => setCreating({})}
           >
             <Plus className="h-3 w-3" aria-hidden /> New entry
           </button>
@@ -135,12 +136,12 @@ export function Dashboard() {
       )}
       {creating && (
         <EntryEditorSheet
-          mode={{ kind: 'create' }}
+          mode={{ kind: 'create', ...creating }}
           categories={categories.data ?? []}
           projects={projects.data ?? []}
-          onClose={() => setCreating(false)}
+          onClose={() => setCreating(null)}
           onSaved={() => {
-            setCreating(false);
+            setCreating(null);
             qc.invalidateQueries({ queryKey: ['entries'] });
           }}
         />

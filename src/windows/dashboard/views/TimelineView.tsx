@@ -4,6 +4,7 @@ import type { TimeEntry } from '../../../types';
 import {
   durationSeconds, fmtDate, fmtDateLong, fmtDur, fmtTime, shiftRange, type DashViewProps,
 } from './types';
+import { minutesToDate, yToMinutes, SNAP_MIN } from './timeline-math';
 
 const HOUR_H = 48;
 const GUTTER = 56; // px column for hour labels
@@ -22,6 +23,8 @@ export function TimelineView(p: DashViewProps) {
   const selected = activeDay ?? days[0]?.[0] ?? null;
   const dayEntries = selected ? (days.find((d) => d[0] === selected)?.[1] ?? []) : [];
   const isToday = selected === new Date().toDateString();
+
+  const [draft, setDraft] = useState<{ startMin: number; endMin: number } | null>(null);
 
   // Current-time indicator, minute resolution.
   const [nowMin, setNowMin] = useState(() => minutesOfDay());
@@ -102,7 +105,28 @@ export function TimelineView(p: DashViewProps) {
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          <div className="relative" style={{ height: 24 * HOUR_H }}>
+          <div
+            className="relative"
+            style={{ height: 24 * HOUR_H }}
+            onPointerDown={(e) => {
+              if (e.target !== e.currentTarget || !selected) return; // blocks handle their own drags
+              const rect = e.currentTarget.getBoundingClientRect();
+              const m = yToMinutes(e.clientY - rect.top, HOUR_H);
+              setDraft({ startMin: m, endMin: m });
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (!draft) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              setDraft({ ...draft, endMin: yToMinutes(e.clientY - rect.top, HOUR_H) });
+            }}
+            onPointerUp={() => {
+              if (!draft || !selected) return;
+              const [a, b] = [Math.min(draft.startMin, draft.endMin), Math.max(draft.startMin, draft.endMin)];
+              setDraft(null);
+              if (b - a >= SNAP_MIN) p.onCreateRange(minutesToDate(selected, a), minutesToDate(selected, b));
+            }}
+          >
             {/* Hour gridlines — clean gutter, Calendar-style */}
             {Array.from({ length: 23 }, (_, i) => {
               const h = i + 1;
@@ -174,6 +198,17 @@ export function TimelineView(p: DashViewProps) {
               <div className="absolute inset-x-0 top-20 text-center text-[12px] text-label-2">
                 No entries for this day.
               </div>
+            )}
+
+            {draft && (
+              <div
+                className="pointer-events-none absolute right-3 rounded-[5px] bg-accent/15 ring-1 ring-inset ring-accent/40"
+                style={{
+                  left: GUTTER + 8,
+                  top: (Math.min(draft.startMin, draft.endMin) / 60) * HOUR_H,
+                  height: (Math.abs(draft.endMin - draft.startMin) / 60) * HOUR_H,
+                }}
+              />
             )}
           </div>
         </div>

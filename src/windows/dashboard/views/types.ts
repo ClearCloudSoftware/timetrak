@@ -12,6 +12,7 @@ export interface DashViewProps {
   onRangeChange: (r: DashRange) => void;
   onEdit: (e: TimeEntry) => void;
   onDelete: (e: TimeEntry) => void;
+  onCreateRange: (start: Date, end: Date) => void;
   isLoading: boolean;
 }
 

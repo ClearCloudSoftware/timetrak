@@ -5,7 +5,7 @@ import type { Category, EntryEdit, NewEntry, Project, TimeEntry } from '../../ty
 
 type Mode =
   | { kind: 'edit'; entry: TimeEntry }
-  | { kind: 'create' };
+  | { kind: 'create'; initialStart?: Date; initialEnd?: Date };
 
 interface Props {
   mode: Mode;
@@ -156,8 +156,10 @@ function computeDefaults(mode: Mode, categories: Category[]) {
   const categoryId = categories.some((c) => c.id === lastUsed) ? lastUsed : fallbackCategory;
   const now = new Date();
   const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-  const s = splitLocal(hourAgo);
-  const e = splitLocal(now);
+  const start = mode.initialStart ?? hourAgo;
+  const end = mode.initialEnd ?? now;
+  const s = splitLocal(start);
+  const e = splitLocal(end);
   return {
     categoryId,
     projectId: null as string | null,
