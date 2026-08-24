@@ -21,6 +21,14 @@ pub fn restore_pending_path(db_path: &Path) -> std::path::PathBuf {
     db_path.with_file_name(name)
 }
 
+/// Path the previous live file is moved to when a restore is swapped in —
+/// the fallback if the restored DB turns out bad.
+fn pre_restore_path(db_path: &Path) -> std::path::PathBuf {
+    let mut name = db_path.file_name().unwrap_or_default().to_os_string();
+    name.push(".pre-restore");
+    db_path.with_file_name(name)
+}
+
 impl Database {
     /// Open or create the DB at `path`, run migrations, enable foreign keys.
     pub fn open(path: &Path) -> AppResult<Self> {
@@ -30,6 +38,13 @@ impl Database {
         // A staged restore (Settings → Restore from backup) wins over the live file.
         let pending = restore_pending_path(path);
         if pending.exists() {
+            // Keep the old live file as a fallback (overwriting any earlier
+            // fallback) before swapping the restore in — both renames are
+            // atomic, so a crash mid-way leaves either the old or new DB
+            // fully intact, never a half-written one.
+            if path.exists() {
+                std::fs::rename(path, pre_restore_path(path))?;
+            }
             std::fs::rename(&pending, path)?;
         }
         let conn = Connection::open(path)?;
@@ -105,6 +120,19 @@ mod tests {
             .unwrap();
         assert_eq!(marker, "restored");
         assert!(!pending.exists());
+
+        // The old live DB must be preserved as a fallback, not overwritten.
+        let pre_restore = path.with_file_name("timetrak.sqlite.pre-restore");
+        assert!(pre_restore.exists());
+        let old_conn = rusqlite::Connection::open_with_flags(
+            &pre_restore,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let old_marker: String = old_conn
+            .query_row("SELECT value FROM app_meta WHERE key = 'marker'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(old_marker, "live");
     }
 
     #[test]
