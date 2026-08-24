@@ -550,14 +550,15 @@ pub struct RecentCombo {
 }
 
 /// Distinct (category, project, note) combinations used since `since`,
-/// most recently used first. Feeds the tray's Quick Start chips.
+/// ranked by frecency: most-used first, last-used breaks ties. Feeds the
+/// tray's Quick Start chips.
 pub fn recent_combos(conn: &Connection, since: DateTime<Utc>, limit: u32) -> AppResult<Vec<RecentCombo>> {
     let mut stmt = conn.prepare(
         "SELECT category_id, project_id, note, MAX(started_at) AS last_used
          FROM time_entry
          WHERE started_at >= ?1
          GROUP BY category_id, COALESCE(project_id, ''), COALESCE(note, '')
-         ORDER BY last_used DESC
+         ORDER BY COUNT(*) DESC, last_used DESC
          LIMIT ?2",
     )?;
     let rows = stmt.query_map(rusqlite::params![since.to_rfc3339(), limit], |r| {
@@ -607,6 +608,21 @@ mod recent_combo_tests {
         assert_eq!(combos[0].category_id, coding());
         assert_eq!(combos[0].note.as_deref(), Some("review"));
         assert_eq!(combos[1].category_id, meeting());
+    }
+
+    #[test]
+    fn recent_combos_ranks_frequent_over_merely_recent() {
+        let db = fresh_db();
+        let conn = db.conn.lock().unwrap();
+        // "review" used 3x earlier in the window; "one-off" once, most recently.
+        insert_with_note(&conn, coding(), "2026-08-18T09:00:00Z", "2026-08-18T10:00:00Z", Some("review"));
+        insert_with_note(&conn, coding(), "2026-08-19T09:00:00Z", "2026-08-19T10:00:00Z", Some("review"));
+        insert_with_note(&conn, coding(), "2026-08-20T09:00:00Z", "2026-08-20T10:00:00Z", Some("review"));
+        insert_with_note(&conn, meeting(), "2026-08-23T09:00:00Z", "2026-08-23T10:00:00Z", Some("one-off"));
+
+        let combos = recent_combos(&conn, t("2026-08-10T00:00:00Z"), 6).unwrap();
+        assert_eq!(combos[0].note.as_deref(), Some("review"), "frequency outranks recency");
+        assert_eq!(combos[1].note.as_deref(), Some("one-off"));
     }
 
     #[test]
