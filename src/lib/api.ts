@@ -51,6 +51,8 @@ export const getTimerState = () => invoke<TimerState>('get_timer_state');
 export const startTimer = (categoryId: Id, projectId: Id | null, note: string | null) =>
   invoke<TimeEntry>('start_timer', { categoryId, projectId, note });
 export const stopTimer = () => invoke<TimeEntry | null>('stop_timer');
+export const idleResolve = (entryId: Id, action: 'keep' | 'stop_at_idle' | 'resume', idleStartedAt: string) =>
+  invoke<void>('idle_resolve', { entryId, action, idleStartedAt });
 export const switchTimer = (categoryId: Id, projectId: Id | null, note: string | null) =>
   invoke<TimeEntry>('switch_timer', { categoryId, projectId, note });
 
