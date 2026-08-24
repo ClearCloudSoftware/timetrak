@@ -204,9 +204,9 @@ export function TimelineView(p: DashViewProps) {
                     if (movedRef.current) { movedRef.current = false; return; }
                     p.onEdit(entry);
                   }}
-                  onPointerDown={draggable ? (e) => {
+                  onPointerDown={(e) => {
                     movedRef.current = false; // clear any stale flag from an interrupted prior drag
-                    if (!e.currentTarget.parentElement) return;
+                    if (!draggable || !e.currentTarget.parentElement) return;
                     const rect = e.currentTarget.getBoundingClientRect();
                     const zone = e.clientY - rect.top < 6 ? 'resize-start'
                       : rect.bottom - e.clientY < 6 ? 'resize-end' : 'move';
@@ -218,7 +218,7 @@ export function TimelineView(p: DashViewProps) {
                     setEditDrag({ entry, kind: zone, origStartMin: startMin, origEndMin: endMin, grabMin, startMin, endMin });
                     e.currentTarget.setPointerCapture(e.pointerId);
                     e.stopPropagation();
-                  } : undefined}
+                  }}
                   onPointerMove={draggable ? (ev) => {
                     if (!editDrag) return;
                     const container = ev.currentTarget.parentElement!.getBoundingClientRect();
