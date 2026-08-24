@@ -120,10 +120,30 @@ use tauri_plugin_notification::NotificationExt;
 /// hasn't already been posted today.
 pub fn spawn_scheduler(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
+        let mut last_nudge: Option<chrono::NaiveDateTime> = None;
         loop {
             if let Err(e) = tick(&app).await {
                 eprintln!("notification scheduler error: {e}");
             }
+
+            let now_local = chrono::Local::now().naive_local();
+            let fire = {
+                let db = app.state::<crate::db::Database>();
+                let conn = db.conn.lock().unwrap();
+                let cfg = get_nudge_config(&conn);
+                let running = crate::repo::entries::running(&conn).ok().flatten().is_some();
+                should_nudge(&cfg, now_local, running, last_nudge)
+            };
+            if fire {
+                last_nudge = Some(now_local);
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title("Nothing is being tracked")
+                    .body("Start a timer from the menu bar.")
+                    .show();
+            }
+
             tokio::time::sleep(Duration::from_secs(60)).await;
         }
     });

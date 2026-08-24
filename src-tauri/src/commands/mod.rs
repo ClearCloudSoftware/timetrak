@@ -5,6 +5,7 @@ pub mod calendar;
 pub mod categories;
 pub mod entries;
 pub mod export;
+pub mod prefs;
 pub mod projects;
 pub mod timer;
 pub mod windows;
@@ -25,6 +26,8 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::entries::delete_entry,
             timetrak_lib::commands::entries::list_recent_combos,
             timetrak_lib::commands::export::export_csv,
+            timetrak_lib::commands::prefs::get_pref,
+            timetrak_lib::commands::prefs::set_pref,
             timetrak_lib::commands::categories::list_categories,
             timetrak_lib::commands::categories::create_category,
             timetrak_lib::commands::categories::update_category,
