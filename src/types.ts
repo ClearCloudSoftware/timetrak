@@ -105,6 +105,11 @@ export interface PendingImport {
 
 export type ResolutionAction = 'kept_mine' | 'used_calendar' | 'edited';
 
+export interface WeeklyGoal {
+  category_id: Id;
+  target_minutes: number;
+}
+
 export interface EntryEdit {
   category_id: Id;
   project_id: Id | null;

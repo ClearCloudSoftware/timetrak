@@ -55,3 +55,19 @@ pub fn delete_category(
     }
     Ok(())
 }
+
+#[tauri::command]
+pub fn goals_list(db: tauri::State<'_, crate::db::Database>) -> crate::error::AppResult<Vec<crate::repo::goals::WeeklyGoal>> {
+    let conn = db.conn.lock().unwrap();
+    crate::repo::goals::all(&conn)
+}
+
+#[tauri::command]
+pub fn goal_set(
+    db: tauri::State<'_, crate::db::Database>,
+    category_id: uuid::Uuid,
+    target_minutes: Option<u32>,
+) -> crate::error::AppResult<()> {
+    let conn = db.conn.lock().unwrap();
+    crate::repo::goals::set(&conn, category_id, target_minutes)
+}

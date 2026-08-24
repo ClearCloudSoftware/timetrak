@@ -32,6 +32,8 @@ macro_rules! timetrak_handlers {
             timetrak_lib::commands::categories::create_category,
             timetrak_lib::commands::categories::update_category,
             timetrak_lib::commands::categories::delete_category,
+            timetrak_lib::commands::categories::goals_list,
+            timetrak_lib::commands::categories::goal_set,
             timetrak_lib::commands::projects::list_projects,
             timetrak_lib::commands::projects::create_project,
             timetrak_lib::commands::projects::update_project,

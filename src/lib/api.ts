@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   Category, Project, TimeEntry, NewEntry, EntryEdit, Id, CalendarStatus,
   CalendarRow, IcsInput, DeviceCodePayload, ConnectPollResult, SyncReport,
-  PendingImport, ResolutionAction, RecentCombo,
+  PendingImport, ResolutionAction, RecentCombo, WeeklyGoal,
 } from '../types';
 
 /**
@@ -19,6 +19,9 @@ export const updateCategory = (id: Id, name: string, color: string) =>
   invoke<Category>('update_category', { id, name, color });
 export const deleteCategory = (id: Id, cascadeEntries: boolean) =>
   invoke<void>('delete_category', { id, cascadeEntries });
+export const listGoals = () => invoke<WeeklyGoal[]>('goals_list');
+export const setGoal = (categoryId: Id, targetMinutes: number | null) =>
+  invoke<void>('goal_set', { categoryId, targetMinutes });
 
 // --- Projects (plan 04) ---
 export const listProjects = () => invoke<Project[]>('list_projects');
