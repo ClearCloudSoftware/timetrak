@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import {
   durationSeconds, fmtDate, fmtDur, fmtTime, shiftRange, type DashViewProps,
 } from './types';
+
+// Single-hue sequential ramp: accent token over the surface, quantized to 4
+// levels (plus empty) so neighboring intensities stay distinguishable.
+function cellBg(level: number): string {
+  return level > 0 ? `rgb(var(--accent) / ${0.12 + level * 0.19})` : 'var(--fill)';
+}
 
 export function HeatmapView(p: DashViewProps) {
   const [filterCat, setFilterCat] = useState<string | null>(null);
@@ -33,26 +40,32 @@ export function HeatmapView(p: DashViewProps) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-separator px-3 py-1.5">
-        <div className="text-[10px] text-label-2">
+        <div className="text-[11px] text-label-2">
           {fmtDate(p.range.startUtc)} → {fmtDate(p.range.endUtc)}
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-1">
           <button
-            className="h-5 rounded-md border border-separator px-2 text-[11px] hover:bg-fill-hover"
+            aria-label="Previous week"
+            className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-separator text-label-2 hover:bg-fill-hover hover:text-label"
             onClick={() => p.onRangeChange(shiftRange(p.range, -7))}
-          >‹</button>
+          >
+            <ChevronLeft className="h-3 w-3" />
+          </button>
           <button
-            className="h-5 rounded-md border border-separator px-2 text-[11px] hover:bg-fill-hover"
+            aria-label="Next week"
+            className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-separator text-label-2 hover:bg-fill-hover hover:text-label"
             onClick={() => p.onRangeChange(shiftRange(p.range, +7))}
-          >›</button>
+          >
+            <ChevronRight className="h-3 w-3" />
+          </button>
         </div>
       </div>
 
-      <div className="border-b border-separator px-3 py-2">
-        <div className="grid grid-cols-[44px_1fr] gap-1">
+      <div className="border-b border-separator px-3 py-2.5">
+        <div className="grid grid-cols-[56px_1fr] gap-y-[3px]">
           <div />
           <div
-            className="grid gap-[2px] text-[9px] text-label-2"
+            className="mb-0.5 grid gap-[3px] text-[9px] tabular-nums text-label-2"
             style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}
           >
             {Array.from({ length: 24 }, (_, h) => (
@@ -60,23 +73,33 @@ export function HeatmapView(p: DashViewProps) {
             ))}
           </div>
           {heatmap.days.map((d, di) => (
-            <RowFragment key={di} dayLabel={d.toLocaleDateString([], { weekday: 'short', day: 'numeric' })}>
+            <RowFragment
+              key={di}
+              dayLabel={d.toLocaleDateString([], { weekday: 'short', day: 'numeric' })}
+            >
               {Array.from({ length: 24 }, (_, hi) => {
                 const v = heatmap.grid[di][hi];
                 const t = heatmap.max > 0 ? v / heatmap.max : 0;
+                const level = v > 0 ? Math.max(1, Math.ceil(t * 4)) : 0;
+                const weekday = d.toLocaleDateString([], { weekday: 'short' });
                 return (
                   <div
                     key={hi}
-                    title={v ? `${fmtDur(v)} at ${hi}:00` : ''}
-                    className="h-3 rounded-[2px]"
-                    style={{
-                      background: v ? `rgba(10, 132, 255, ${0.12 + t * 0.78})` : 'rgba(0,0,0,0.04)',
-                    }}
+                    title={v ? `${weekday} ${hi}:00 — ${fmtDur(v)}` : ''}
+                    className="h-5 rounded-[3px]"
+                    style={{ background: cellBg(level) }}
                   />
                 );
               })}
             </RowFragment>
           ))}
+        </div>
+        <div className="mt-2 flex items-center justify-end gap-1 text-[9px] text-label-2">
+          <span className="mr-0.5">Less</span>
+          {[0, 1, 2, 3, 4].map((lvl) => (
+            <span key={lvl} className="h-2.5 w-2.5 rounded-[2px]" style={{ background: cellBg(lvl) }} />
+          ))}
+          <span className="ml-0.5">More</span>
         </div>
       </div>
 
@@ -122,9 +145,21 @@ export function HeatmapView(p: DashViewProps) {
               <span className="w-20 truncate">{cat?.name}</span>
               <span className="w-24 truncate text-label-2">{proj?.name ?? ''}</span>
               <span className="flex-1 truncate text-label-2">{e.note ?? ''}</span>
-              <span className="opacity-0 transition-opacity group-hover:opacity-100">
-                <button className="text-accent hover:underline" onClick={() => p.onEdit(e)}>Edit</button>
-                <button className="ml-2 text-destructive hover:underline" onClick={() => p.onDelete(e)}>Delete</button>
+              <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  aria-label="Edit entry"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded text-label-2 hover:text-label"
+                  onClick={() => p.onEdit(e)}
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  aria-label="Delete entry"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded text-label-2 hover:text-destructive"
+                  onClick={() => p.onDelete(e)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
               </span>
             </div>
           );
@@ -153,8 +188,8 @@ function Chip({ active, onClick, label }: { active: boolean; onClick: () => void
 function RowFragment({ dayLabel, children }: { dayLabel: string; children: React.ReactNode }) {
   return (
     <>
-      <div className="text-[10px] text-label-2">{dayLabel}</div>
-      <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
+      <div className="flex items-center pr-2 text-[10px] text-label-2">{dayLabel}</div>
+      <div className="grid gap-[3px]" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
         {children}
       </div>
     </>

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { durationSeconds, fmtDate, fmtDur, fmtTime, type DashViewProps } from './types';
 import { DateInput as MaskedDateInput } from '../EntryEditorSheet';
 import { matchPreset, rangeThisMonth, rangeThisWeek, rangeToday, type RangePreset } from '../format';
@@ -88,8 +89,22 @@ export function TableView(p: DashViewProps) {
                   <td className="px-3 text-label-2">{proj?.name ?? ''}</td>
                   <td className="max-w-[260px] truncate px-3 text-label-2">{e.note ?? ''}</td>
                   <td className="px-3 text-right opacity-0 transition-opacity group-hover:opacity-100">
-                    <button className="text-accent hover:underline" onClick={() => p.onEdit(e)}>Edit</button>
-                    <button className="ml-2 text-destructive hover:underline" onClick={() => p.onDelete(e)}>Delete</button>
+                    <span className="inline-flex items-center gap-0.5">
+                      <button
+                        aria-label="Edit entry"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded text-label-2 hover:text-label"
+                        onClick={() => p.onEdit(e)}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        aria-label="Delete entry"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded text-label-2 hover:text-destructive"
+                        onClick={() => p.onDelete(e)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </span>
                   </td>
                 </tr>
               );

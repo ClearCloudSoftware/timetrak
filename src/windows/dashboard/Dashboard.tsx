@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Table, ChartNoAxesGantt, LayoutGrid, Plus } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { save } from '@tauri-apps/plugin-dialog';
+import { ask, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { listen } from '@tauri-apps/api/event';
 import * as api from '../../lib/api';
@@ -84,7 +84,10 @@ export function Dashboard() {
     range,
     onRangeChange: setRange,
     onEdit: setEditing,
-    onDelete: (e) => deleteMut.mutate(e.id),
+    onDelete: (e) => {
+      void ask('Delete this entry?', { title: 'Delete Entry', kind: 'warning', okLabel: 'Delete' })
+        .then((ok) => { if (ok) deleteMut.mutate(e.id); });
+    },
     isLoading: entries.isLoading,
   };
 
