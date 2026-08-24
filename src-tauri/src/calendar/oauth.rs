@@ -75,6 +75,13 @@ pub struct StoredTokens {
 
 /// Step 1: request a device + user code from Google.
 pub async fn request_device_code(client: &reqwest::Client) -> AppResult<DeviceCodeResponse> {
+    if GOOGLE_CLIENT_ID.starts_with("REPLACE_ME") {
+        return Err(AppError::Invalid(
+            "This build has no Google OAuth client baked in. Set TIMETRAK_GOOGLE_CLIENT_ID and \
+             TIMETRAK_GOOGLE_CLIENT_SECRET in .env and rebuild (npm run tauri dev)."
+                .into(),
+        ));
+    }
     let resp = client
         .post(DEVICE_CODE_URL)
         .form(&[("client_id", GOOGLE_CLIENT_ID), ("scope", SCOPE)])

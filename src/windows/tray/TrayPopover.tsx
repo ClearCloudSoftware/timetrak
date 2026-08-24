@@ -13,6 +13,7 @@ import type { Category, Id, Project, TimeEntry } from '../../types';
 import { todayRangeUtc } from './format';
 import { HeaderIcons } from './HeaderIcons';
 import { InlineTimerForm } from './InlineTimerForm';
+import type { SubmitValue } from './InlineTimerForm';
 import { QuickStartCard } from './QuickStartCard';
 import { TodayList } from './TodayList';
 import { TodayEntryRow } from './TodayEntryRow';
@@ -42,6 +43,28 @@ function formatElapsed(s: number): string {
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+/** Local HH:mm for an ISO instant. */
+function localHhMm(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * Re-time an ISO instant to a new HH:mm on the same local day. `refIso` anchors
+ * the day: an end time earlier than the start rolls to the next day so an entry
+ * crossing midnight stays positive.
+ * ponytail: same-day (or next-day) only — moving an entry to another date is a
+ * dashboard job.
+ */
+function withLocalTime(iso: string, hhmm: string, afterIso?: string): string {
+  const [h, m] = hhmm.split(':').map((n) => parseInt(n, 10));
+  if (Number.isNaN(h) || Number.isNaN(m)) return iso;
+  const d = new Date(iso);
+  d.setHours(h, m, 0, 0);
+  if (afterIso && d.getTime() < new Date(afterIso).getTime()) d.setDate(d.getDate() + 1);
+  return d.toISOString();
 }
 
 // ---------------------------------------------------------------------------
@@ -237,6 +260,42 @@ export function TrayPopover() {
     },
   });
 
+  const updateEntryMut = useMutation({
+    mutationFn: ({ entry, categoryId, projectId, description, startTime, endTime }:
+      SubmitValue & { entry: TimeEntry }) => {
+      const startedAt = startTime ? withLocalTime(entry.started_at, startTime) : entry.started_at;
+      const endedAt =
+        entry.ended_at && endTime ? withLocalTime(entry.ended_at, endTime, startedAt) : entry.ended_at;
+      return api.updateEntry(entry.id, {
+        category_id: categoryId,
+        project_id: projectId,
+        started_at: startedAt,
+        ended_at: endedAt,
+        note: description,
+      });
+    },
+    onSuccess: () => {
+      invalidateAll();
+      setMode({ kind: 'browse' });
+      setErrorMessage(null);
+    },
+    onError: (err: unknown) => {
+      setErrorMessage(String(err));
+    },
+  });
+
+  const deleteEntryMut = useMutation({
+    mutationFn: (id: Id) => api.deleteEntry(id),
+    onSuccess: () => {
+      invalidateAll();
+      setMode({ kind: 'browse' });
+      setErrorMessage(null);
+    },
+    onError: (err: unknown) => {
+      setErrorMessage(String(err));
+    },
+  });
+
   const stopMut = useMutation({
     mutationFn: () => api.stopTimer(),
     onSuccess: () => {
@@ -267,14 +326,17 @@ export function TrayPopover() {
     setErrorMessage(null);
   };
 
-  const handleSubmit = (v: { categoryId: Id; projectId: Id | null; description: string | null }) => {
-    startOrSwitchMut.mutate(v);
+  const handleSubmit = (v: SubmitValue) => {
+    if (mode.kind === 'edit') updateEntryMut.mutate({ entry: mode.sourceEntry, ...v });
+    else startOrSwitchMut.mutate(v);
   };
 
   const fromEntry = (entry: TimeEntry) => ({
     categoryId: entry.category_id,
     projectId: entry.project_id,
     description: entry.note ?? '',
+    startTime: localHhMm(entry.started_at),
+    endTime: entry.ended_at ? localHhMm(entry.ended_at) : null,
   });
 
   return (
@@ -366,7 +428,10 @@ export function TrayPopover() {
                 projects={projs}
                 onCancel={handleCancel}
                 onSubmit={handleSubmit}
-                submitting={startOrSwitchMut.isPending}
+                submitting={updateEntryMut.isPending}
+                submitLabel="Save"
+                onDelete={() => deleteEntryMut.mutate(mode.sourceEntry.id)}
+                deleting={deleteEntryMut.isPending}
               />
               {/* Remaining stopped entries */}
               <TodayList

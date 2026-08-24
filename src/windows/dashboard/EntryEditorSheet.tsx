@@ -158,7 +158,7 @@ function computeDefaults(mode: Mode, categories: Category[]) {
   };
 }
 
-function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   // Plain text input; masked to HH:mm 24hr. Avoids WKWebView's locale-driven
   // 12hr `<input type="time">` rendering.
   const [draft, setDraft] = useState(value);

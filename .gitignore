@@ -24,3 +24,6 @@ Thumbs.db
 *.log
 *.sqlite
 *.sqlite-journal
+
+# Local OAuth creds — baked into the build, never committed
+.env

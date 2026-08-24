@@ -187,13 +187,20 @@ function GoogleConnect() {
   }
 
   return (
-    <button
-      className="h-7 w-full rounded-md bg-[#0a84ff] px-3 text-[12px] font-medium text-white hover:bg-[#0a74e0] disabled:bg-[#d2d2d7]"
-      onClick={() => start.mutate()}
-      disabled={start.isPending}
-    >
-      {start.isPending ? 'Starting…' : 'Connect Google Calendar'}
-    </button>
+    <>
+      <button
+        className="h-7 w-full rounded-md bg-[#0a84ff] px-3 text-[12px] font-medium text-white hover:bg-[#0a74e0] disabled:bg-[#d2d2d7]"
+        onClick={() => start.mutate()}
+        disabled={start.isPending}
+      >
+        {start.isPending ? 'Starting…' : 'Connect Google Calendar'}
+      </button>
+      {start.isError && (
+        <div className="mt-1.5 rounded-md bg-[#ff453a]/10 px-2 py-1 text-[11px] text-[#ff453a]">
+          {String(start.error)}
+        </div>
+      )}
+    </>
   );
 }
 
